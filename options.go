@@ -47,30 +47,41 @@ func WithSubPermissins(permissions ...Permission) Option {
 	}
 }
 
-// WithCustomCheck function
-func WithCustomCheck(f interface{}) Option {
+// WithCustomCheck function and additional data if need to use in checker
+// Example:
+//   callback := func(ctx context.Context, resource interface{}, names ...string) bool {
+//     return ExtData(ctx).(*model.RoleContext).DebugMode
+//   }
+//   perm := NewRosourcePermission(`view`, &model.User{}, WithCustomCheck(callback, &roleContext))
+func WithCustomCheck(f interface{}, data ...interface{}) Option {
 	return func(obj interface{}) error {
 		if f == nil {
 			return errors.Wrap(ErrInvalidOptionParam, `WithCustomCheck`)
+		}
+		var dataVal interface{}
+		if len(data) > 0 {
+			dataVal = data[0]
 		}
 		switch o := obj.(type) {
 		case *SimplePermission:
 			o.checkFnk = reflect.ValueOf(f)
 			ftype := o.checkFnk.Type()
-			if ftype.NumIn() != 2 {
+			if ftype.NumIn() != 3 {
 				return errors.Wrap(ErrInvalidOptionParam, `WithCustomCheck::callback`)
 			}
 			o.checkFnkResType = ftype.In(0)
+			o.extData = dataVal
 		case *RosourcePermission:
 			o.checkFnk = reflect.ValueOf(f)
 			ftype := o.checkFnk.Type()
-			if ftype.NumIn() != 2 {
+			if ftype.NumIn() != 3 {
 				return errors.Wrap(ErrInvalidOptionParam, `WithCustomCheck::callback`)
 			}
 			o.checkFnkResType = ftype.In(0)
 			if o.checkFnkResType.Kind() != reflect.Interface && o.checkFnkResType != o.resType {
 				return errors.Wrap(ErrInvalidOptionParam, `WithCustomCheck::(callback invalid argument != resource.Type)`)
 			}
+			o.extData = dataVal
 		default:
 			return errors.Wrap(ErrInvalidOption, `WithCustomCheck`)
 		}

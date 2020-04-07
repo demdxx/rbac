@@ -1,5 +1,7 @@
 package rbac
 
+import "context"
+
 // Role base interface
 type Role interface {
 	Permission
@@ -43,17 +45,17 @@ func (r *role) Name() string {
 }
 
 // CheckPermissions of some resource
-func (r *role) CheckPermissions(resource interface{}, names ...string) bool {
+func (r *role) CheckPermissions(ctx context.Context, resource interface{}, names ...string) bool {
 	if len(names) == 0 {
 		panic(ErrInvalidCheckParams)
 	}
 	for _, p := range r.permissions {
-		if p.CheckPermissions(resource, names...) {
+		if p.CheckPermissions(ctx, resource, names...) {
 			return true
 		}
 	}
 	for _, r := range r.roles {
-		if r.CheckPermissions(resource, names...) {
+		if r.CheckPermissions(ctx, resource, names...) {
 			return true
 		}
 	}

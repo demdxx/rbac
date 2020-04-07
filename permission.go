@@ -1,6 +1,7 @@
 package rbac
 
 import (
+	"context"
 	"errors"
 	"reflect"
 )
@@ -18,14 +19,15 @@ type Permission interface {
 	Name() string
 
 	// CheckPermissions to accept to resource
-	CheckPermissions(resource interface{}, names ...string) bool
+	CheckPermissions(ctx context.Context, resource interface{}, names ...string) bool
 }
 
 // SimplePermission implementation with simple functionality
 type SimplePermission struct {
 	name            string
+	extData         interface{}
 	checkFnkResType reflect.Type
-	checkFnk        reflect.Value // func(resourceType, names ...string)
+	checkFnk        reflect.Value // func(ctx, resource, names ...string)
 	permissions     []Permission
 }
 
@@ -55,22 +57,22 @@ func (perm *SimplePermission) Name() string {
 }
 
 // CheckPermissions to accept to resource
-func (perm *SimplePermission) CheckPermissions(resource interface{}, names ...string) bool {
+func (perm *SimplePermission) CheckPermissions(ctx context.Context, resource interface{}, names ...string) bool {
 	if len(names) == 0 {
 		panic(ErrInvalidCheckParams)
 	}
-	if indexOfStrArr(perm.name, names) && perm.callCallback(resource, names...) {
+	if indexOfStrArr(perm.name, names) && perm.callCallback(ctx, resource, names...) {
 		return true
 	}
 	for _, p := range perm.permissions {
-		if p.CheckPermissions(resource, names...) {
+		if p.CheckPermissions(ctx, resource, names...) {
 			return true
 		}
 	}
 	return false
 }
 
-func (perm *SimplePermission) callCallback(resource interface{}, names ...string) bool {
+func (perm *SimplePermission) callCallback(ctx context.Context, resource interface{}, names ...string) bool {
 	if perm.checkFnk.Kind() != reflect.Func {
 		return true
 	}
@@ -82,7 +84,7 @@ func (perm *SimplePermission) callCallback(resource interface{}, names ...string
 	if perm.checkFnkResType.Kind() != reflect.Interface && perm.checkFnkResType != res.Type() {
 		return false
 	}
-	in := []reflect.Value{res}
+	in := []reflect.Value{reflect.ValueOf(ctx), res}
 	for _, name := range names {
 		in = append(in, reflect.ValueOf(name))
 	}
@@ -125,12 +127,12 @@ func MustNewRosourcePermission(name string, resType interface{}, options ...Opti
 }
 
 // CheckPermissions to accept to resource
-func (perm *RosourcePermission) CheckPermissions(resource interface{}, names ...string) bool {
-	if indexOfStrArr(perm.name, names) && perm.CheckType(resource) && perm.callCallback(resource, names...) {
+func (perm *RosourcePermission) CheckPermissions(ctx context.Context, resource interface{}, names ...string) bool {
+	if indexOfStrArr(perm.name, names) && perm.CheckType(resource) && perm.callCallback(ctx, resource, names...) {
 		return true
 	}
 	for _, p := range perm.permissions {
-		if p.CheckPermissions(resource, names...) {
+		if p.CheckPermissions(ctx, resource, names...) {
 			return true
 		}
 	}

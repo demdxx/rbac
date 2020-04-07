@@ -1,19 +1,23 @@
 package rbac
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
 
 func TestNewRole(t *testing.T) {
+	ctx := context.TODO()
+
 	role, err := NewRole(`test`, WithChildRoles(MustNewRole(`viewer`)))
 	assert.NoError(t, err, `NewRole`)
 	assert.Equal(t, `test`, role.Name())
-	assert.False(t, role.CheckPermissions(&testObject{}, `view`))
+	assert.False(t, role.CheckPermissions(ctx, &testObject{}, `view`))
 }
 
 func TestViewRole(t *testing.T) {
+	ctx := context.TODO()
 	viewer := MustNewRole(`viewer`, WithSubPermissins(
 		MustNewSimplePermission(`view1`),
 		MustNewRosourcePermission(`view2`, (*testObject)(nil)),
@@ -22,9 +26,9 @@ func TestViewRole(t *testing.T) {
 	role, err := NewRole(`test`, WithChildRoles(viewer))
 	assert.NoError(t, err, `NewRole`)
 	assert.Equal(t, `test`, role.Name())
-	assert.True(t, role.CheckPermissions(&testObject{name: `test`}, `view1`))
-	assert.True(t, role.CheckPermissions(&testObject{name: `test`}, `view2`))
-	assert.True(t, role.CheckPermissions(&testObject{name: `test`}, `view3`))
+	assert.True(t, role.CheckPermissions(ctx, &testObject{name: `test`}, `view1`))
+	assert.True(t, role.CheckPermissions(ctx, &testObject{name: `test`}, `view2`))
+	assert.True(t, role.CheckPermissions(ctx, &testObject{name: `test`}, `view3`))
 }
 
 func TestNewRoleError(t *testing.T) {
