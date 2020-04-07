@@ -164,6 +164,7 @@ func indexOfStrArr(s string, arr []string) bool {
 func getResType(resource interface{}) (res reflect.Type) {
 	switch r := resource.(type) {
 	case nil:
+		return nil
 	case reflect.Type:
 		res = r
 	default:

@@ -35,6 +35,11 @@ func TestResourcePermission(t *testing.T) {
 	assert.True(t, perm.CheckPermissions(ctx, &testObject{name: `test`}, `view`), `CheckPermissions`)
 }
 
+func TestNewResourcePermissionError(t *testing.T) {
+	_, err := NewRosourcePermission(`view`, nil, WithCustomCheck(testCustomCallback))
+	assert.EqualError(t, err, ErrInvalidResouceType.Error())
+}
+
 func testCustomCallback(ctx context.Context, obj *testObject, names ...string) bool {
 	return obj.name == `test`
 }
