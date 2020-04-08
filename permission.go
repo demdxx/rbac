@@ -84,6 +84,9 @@ func (perm *SimplePermission) callCallback(ctx context.Context, resource interfa
 	if perm.checkFnkResType.Kind() != reflect.Interface && perm.checkFnkResType != res.Type() {
 		return false
 	}
+	if perm.extData != nil {
+		ctx = withExtData(ctx, perm.extData)
+	}
 	in := []reflect.Value{reflect.ValueOf(ctx), res}
 	for _, name := range names {
 		in = append(in, reflect.ValueOf(name))
