@@ -19,13 +19,13 @@ type Permission interface {
 	Name() string
 
 	// CheckPermissions to accept to resource
-	CheckPermissions(ctx context.Context, resource interface{}, names ...string) bool
+	CheckPermissions(ctx context.Context, resource any, names ...string) bool
 }
 
 // SimplePermission implementation with simple functionality
 type SimplePermission struct {
 	name            string
-	extData         interface{}
+	extData         any
 	checkFnkResType reflect.Type
 	checkFnk        reflect.Value // func(ctx, resource, names ...string)
 	permissions     []Permission
@@ -57,7 +57,7 @@ func (perm *SimplePermission) Name() string {
 }
 
 // CheckPermissions to accept to resource
-func (perm *SimplePermission) CheckPermissions(ctx context.Context, resource interface{}, names ...string) bool {
+func (perm *SimplePermission) CheckPermissions(ctx context.Context, resource any, names ...string) bool {
 	if len(names) == 0 {
 		panic(ErrInvalidCheckParams)
 	}
@@ -72,7 +72,7 @@ func (perm *SimplePermission) CheckPermissions(ctx context.Context, resource int
 	return false
 }
 
-func (perm *SimplePermission) callCallback(ctx context.Context, resource interface{}, names ...string) bool {
+func (perm *SimplePermission) callCallback(ctx context.Context, resource any, names ...string) bool {
 	if perm.checkFnk.Kind() != reflect.Func {
 		return true
 	}
@@ -102,7 +102,7 @@ type RosourcePermission struct {
 }
 
 // NewRosourcePermission object with custom checker and base type
-func NewRosourcePermission(name string, resType interface{}, options ...Option) (Permission, error) {
+func NewRosourcePermission(name string, resType any, options ...Option) (Permission, error) {
 	perm := &RosourcePermission{
 		SimplePermission: SimplePermission{name: name},
 		resType:          getResType(resType),
@@ -119,7 +119,7 @@ func NewRosourcePermission(name string, resType interface{}, options ...Option) 
 }
 
 // MustNewRosourcePermission with name and resource type
-func MustNewRosourcePermission(name string, resType interface{}, options ...Option) Permission {
+func MustNewRosourcePermission(name string, resType any, options ...Option) Permission {
 	perm, err := NewRosourcePermission(name, resType, options...)
 	if err != nil {
 		panic(err)
@@ -128,7 +128,7 @@ func MustNewRosourcePermission(name string, resType interface{}, options ...Opti
 }
 
 // CheckPermissions to accept to resource
-func (perm *RosourcePermission) CheckPermissions(ctx context.Context, resource interface{}, names ...string) bool {
+func (perm *RosourcePermission) CheckPermissions(ctx context.Context, resource any, names ...string) bool {
 	if indexOfStrArr(perm.name, names) && perm.CheckType(resource) && perm.callCallback(ctx, resource, names...) {
 		return true
 	}
@@ -141,7 +141,7 @@ func (perm *RosourcePermission) CheckPermissions(ctx context.Context, resource i
 }
 
 // CheckType of resource and target type
-func (perm *RosourcePermission) CheckType(resource interface{}) bool {
+func (perm *RosourcePermission) CheckType(resource any) bool {
 	var res reflect.Type
 	switch t := resource.(type) {
 	case nil:
@@ -162,7 +162,7 @@ func indexOfStrArr(s string, arr []string) bool {
 	return false
 }
 
-func getResType(resource interface{}) (res reflect.Type) {
+func getResType(resource any) (res reflect.Type) {
 	switch r := resource.(type) {
 	case nil:
 		return nil

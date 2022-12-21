@@ -4,7 +4,7 @@ import "context"
 
 var ctxExtData = struct{ s string }{"rbac:checkextdata"}
 
-func withExtData(ctx context.Context, data interface{}) context.Context {
+func withExtData(ctx context.Context, data any) context.Context {
 	if data != nil {
 		ctx = context.WithValue(ctx, ctxExtData, data)
 	}
@@ -12,6 +12,6 @@ func withExtData(ctx context.Context, data interface{}) context.Context {
 }
 
 // ExtData returns additional data from context
-func ExtData(ctx context.Context) interface{} {
+func ExtData(ctx context.Context) any {
 	return ctx.Value(ctxExtData)
 }

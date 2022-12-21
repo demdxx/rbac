@@ -8,7 +8,7 @@ import (
 )
 
 func TestContextExtData(t *testing.T) {
-	val := map[string]interface{}{"test": "value"}
+	val := map[string]any{"test": "value"}
 	ctx := context.TODO()
 	ctx = withExtData(ctx, val)
 	ctx = withExtData(ctx, nil)

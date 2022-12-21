@@ -45,7 +45,7 @@ func (r *role) Name() string {
 }
 
 // CheckPermissions of some resource
-func (r *role) CheckPermissions(ctx context.Context, resource interface{}, names ...string) bool {
+func (r *role) CheckPermissions(ctx context.Context, resource any, names ...string) bool {
 	if len(names) == 0 {
 		panic(ErrInvalidCheckParams)
 	}

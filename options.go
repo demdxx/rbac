@@ -1,9 +1,8 @@
 package rbac
 
 import (
+	"errors"
 	"reflect"
-
-	"github.com/pkg/errors"
 )
 
 var (
@@ -15,16 +14,16 @@ var (
 )
 
 // Option apply function to object
-type Option func(obj interface{}) error
+type Option func(obj any) error
 
 // WithChildRoles of the role
 func WithChildRoles(roles ...Role) Option {
-	return func(obj interface{}) error {
+	return func(obj any) error {
 		switch o := obj.(type) {
 		case *role:
 			o.roles = roles
 		default:
-			return errors.Wrap(ErrInvalidOption, `WithChildRoles`)
+			return wrapError(ErrInvalidOption, `WithChildRoles`)
 		}
 		return nil
 	}
@@ -32,7 +31,7 @@ func WithChildRoles(roles ...Role) Option {
 
 // WithSubPermissins apply subpermission
 func WithSubPermissins(permissions ...Permission) Option {
-	return func(obj interface{}) error {
+	return func(obj any) error {
 		switch o := obj.(type) {
 		case *SimplePermission:
 			o.permissions = permissions
@@ -41,7 +40,7 @@ func WithSubPermissins(permissions ...Permission) Option {
 		case *role:
 			o.permissions = permissions
 		default:
-			return errors.Wrap(ErrInvalidOption, `WithSubPermissins`)
+			return wrapError(ErrInvalidOption, `WithSubPermissins`)
 		}
 		return nil
 	}
@@ -49,16 +48,17 @@ func WithSubPermissins(permissions ...Permission) Option {
 
 // WithCustomCheck function and additional data if need to use in checker
 // Example:
-//   callback := func(ctx context.Context, resource interface{}, names ...string) bool {
-//     return ExtData(ctx).(*model.RoleContext).DebugMode
-//   }
-//   perm := NewRosourcePermission(`view`, &model.User{}, WithCustomCheck(callback, &roleContext))
-func WithCustomCheck(f interface{}, data ...interface{}) Option {
-	return func(obj interface{}) error {
+//
+//	callback := func(ctx context.Context, resource any, names ...string) bool {
+//	  return ExtData(ctx).(*model.RoleContext).DebugMode
+//	}
+//	perm := NewRosourcePermission(`view`, &model.User{}, WithCustomCheck(callback, &roleContext))
+func WithCustomCheck(f any, data ...any) Option {
+	return func(obj any) error {
 		if f == nil {
-			return errors.Wrap(ErrInvalidOptionParam, `WithCustomCheck`)
+			return wrapError(ErrInvalidOptionParam, `WithCustomCheck`)
 		}
-		var dataVal interface{}
+		var dataVal any
 		if len(data) > 0 {
 			dataVal = data[0]
 		}
@@ -67,7 +67,7 @@ func WithCustomCheck(f interface{}, data ...interface{}) Option {
 			o.checkFnk = reflect.ValueOf(f)
 			ftype := o.checkFnk.Type()
 			if ftype.NumIn() != 3 {
-				return errors.Wrap(ErrInvalidOptionParam, `WithCustomCheck::callback`)
+				return wrapError(ErrInvalidOptionParam, `WithCustomCheck::callback`)
 			}
 			o.checkFnkResType = ftype.In(0)
 			o.extData = dataVal
@@ -75,15 +75,15 @@ func WithCustomCheck(f interface{}, data ...interface{}) Option {
 			o.checkFnk = reflect.ValueOf(f)
 			ftype := o.checkFnk.Type()
 			if ftype.NumIn() != 3 {
-				return errors.Wrap(ErrInvalidOptionParam, `WithCustomCheck::callback`)
+				return wrapError(ErrInvalidOptionParam, `WithCustomCheck::callback`)
 			}
 			o.checkFnkResType = ftype.In(0)
 			if o.checkFnkResType.Kind() != reflect.Interface && o.checkFnkResType != o.resType {
-				return errors.Wrap(ErrInvalidOptionParam, `WithCustomCheck::(callback invalid argument != resource.Type)`)
+				return wrapError(ErrInvalidOptionParam, `WithCustomCheck::(callback invalid argument != resource.Type)`)
 			}
 			o.extData = dataVal
 		default:
-			return errors.Wrap(ErrInvalidOption, `WithCustomCheck`)
+			return wrapError(ErrInvalidOption, `WithCustomCheck`)
 		}
 		return nil
 	}
