@@ -5,6 +5,7 @@ import "context"
 // Role base interface
 type Role interface {
 	Permission
+	ChildRoles() []Role
 }
 
 // Role base object
@@ -17,6 +18,9 @@ type role struct {
 
 	// List of permissions
 	permissions []Permission
+
+	// Additional data
+	extData any
 }
 
 // NewRole interface implementation
@@ -60,4 +64,19 @@ func (r *role) CheckPermissions(ctx context.Context, resource any, names ...stri
 		}
 	}
 	return false
+}
+
+// ChildRoles returns list of child roles
+func (r *role) ChildRoles() []Role {
+	return r.roles
+}
+
+// ChildPermissions returns list of child permissions
+func (r *role) ChildPermissions() []Permission {
+	return r.permissions
+}
+
+// Ext returns additional user data
+func (r *role) Ext() any {
+	return r.extData
 }

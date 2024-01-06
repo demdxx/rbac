@@ -40,7 +40,7 @@ func TestResourcePermission(t *testing.T) {
 	assert.True(t, perm.CheckPermissions(ctx, &testObject{name: `test`}, `view`), `CheckPermissions`)
 
 	perm2, err := NewRosourcePermission(`top-level2`, (*testObject)(nil), WithCustomCheck(func(ctx context.Context, obj *testObject, perm Permission) bool {
-		return ExtData(ctx).(*testExt).name == `test`
+		return perm.Ext().(*testExt).name == `test`
 	}, &testExt{name: "test"}))
 	assert.NoError(t, err, `NewSimplePermission:top-level2`)
 	assert.Equal(t, `top-level2`, perm2.Name())

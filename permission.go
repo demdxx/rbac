@@ -20,6 +20,12 @@ type Permission interface {
 
 	// CheckPermissions to accept to resource
 	CheckPermissions(ctx context.Context, resource any, names ...string) bool
+
+	// ChildPermissions list returns list of child permissions
+	ChildPermissions() []Permission
+
+	// Ext returns additional user data
+	Ext() any
 }
 
 // SimplePermission implementation with simple functionality
@@ -72,6 +78,16 @@ func (perm *SimplePermission) CheckPermissions(ctx context.Context, resource any
 	return false
 }
 
+// ChildPermissions returns list of child permissions
+func (perm *SimplePermission) ChildPermissions() []Permission {
+	return perm.permissions
+}
+
+// Ext returns additional user data
+func (perm *SimplePermission) Ext() any {
+	return perm.extData
+}
+
 func (perm *SimplePermission) callCallback(ctx context.Context, resource any, names ...string) bool {
 	if perm.checkFnk.Kind() != reflect.Func {
 		return true
@@ -84,7 +100,6 @@ func (perm *SimplePermission) callCallback(ctx context.Context, resource any, na
 	if perm.checkFnkResType.Kind() != reflect.Interface && perm.checkFnkResType != res.Type() {
 		return false
 	}
-	ctx = withExtData(ctx, perm.extData)
 	in := []reflect.Value{
 		reflect.ValueOf(ctx), res,
 		reflect.ValueOf((Permission)(perm)),
@@ -151,6 +166,16 @@ func (perm *RosourcePermission) CheckType(resource any) bool {
 		res = reflect.TypeOf(resource)
 	}
 	return perm.resType == res
+}
+
+// ChildPermissions returns list of child permissions
+func (perm *RosourcePermission) ChildPermissions() []Permission {
+	return perm.permissions
+}
+
+// Ext returns additional user data
+func (perm *RosourcePermission) Ext() any {
+	return perm.extData
 }
 
 func indexOfStrArr(s string, arr []string) bool {

@@ -88,3 +88,25 @@ func WithCustomCheck(f any, data ...any) Option {
 		return nil
 	}
 }
+
+// WithExtData for the role or permission
+func WithExtData(data any) Option {
+	type setExtI interface {
+		SetExtData(data any)
+	}
+	return func(obj any) error {
+		switch o := obj.(type) {
+		case *SimplePermission:
+			o.extData = data
+		case *RosourcePermission:
+			o.extData = data
+		case *role:
+			o.extData = data
+		case setExtI:
+			o.SetExtData(data)
+		default:
+			return wrapError(ErrInvalidOption, `WithExtData`)
+		}
+		return nil
+	}
+}

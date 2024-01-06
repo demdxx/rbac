@@ -30,6 +30,11 @@ func TestViewRole(t *testing.T) {
 	assert.True(t, role.CheckPermissions(ctx, &testObject{name: `test`}, `view2`))
 	assert.True(t, role.CheckPermissions(ctx, &testObject{name: `test`}, `view3`))
 	assert.Panics(t, func() { role.CheckPermissions(ctx, nil) })
+	assert.Equal(t, 0, len(role.ChildPermissions()))
+	if assert.Equal(t, 1, len(role.ChildRoles())) {
+		assert.Equal(t, `viewer`, role.ChildRoles()[0].Name())
+		assert.Equal(t, 3, len(role.ChildRoles()[0].ChildPermissions()))
+	}
 }
 
 func TestNewRoleError(t *testing.T) {
