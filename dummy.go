@@ -8,7 +8,7 @@ type dummy struct {
 }
 
 // NewDummyPermission permission with predefined check
-func NewDummyPermission(name string, allow bool) Permission                  { return &dummy{name: name, allow: allow} }
+func NewDummyPermission(name string, allow bool) Role                        { return &dummy{name: name, allow: allow} }
 func (d *dummy) Name() string                                                { return d.name }
 func (d *dummy) CheckPermissions(_ context.Context, _ any, _ ...string) bool { return d.allow }
 func (d *dummy) ChildPermissions() []Permission                              { return nil }
