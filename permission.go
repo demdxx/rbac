@@ -24,6 +24,12 @@ type Permission interface {
 	// ChildPermissions list returns list of child permissions
 	ChildPermissions() []Permission
 
+	// Permission returns permission by name
+	Permission(name string) Permission
+
+	// HasPermission returns true if permission has child permission
+	HasPermission(name string) bool
+
 	// Ext returns additional user data
 	Ext() any
 }
@@ -81,6 +87,26 @@ func (perm *SimplePermission) CheckPermissions(ctx context.Context, resource any
 // ChildPermissions returns list of child permissions
 func (perm *SimplePermission) ChildPermissions() []Permission {
 	return perm.permissions
+}
+
+// Permission returns permission by name
+func (perm *SimplePermission) Permission(name string) Permission {
+	if perm.name == name {
+		return perm
+	}
+	for _, p := range perm.permissions {
+		if p.Name() == name {
+			return p
+		} else if child := p.Permission(name); child != nil {
+			return child
+		}
+	}
+	return nil
+}
+
+// HasPermission returns true if permission has permission
+func (perm *SimplePermission) HasPermission(name string) bool {
+	return perm.Permission(name) != nil
 }
 
 // Ext returns additional user data
