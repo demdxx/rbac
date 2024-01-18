@@ -200,6 +200,22 @@ func (perm *RosourcePermission) CheckPermissions(ctx context.Context, resource a
 	return false
 }
 
+// CheckedPermission returns child permission for resource which has been checked as allowed
+func (perm *RosourcePermission) CheckedPermissions(ctx context.Context, resource any, names ...string) Permission {
+	if len(names) == 0 {
+		return nil
+	}
+	if indexOfStrArr(perm.name, names) && perm.CheckType(resource) && perm.callCallback(ctx, resource, names...) {
+		return perm
+	}
+	for _, p := range perm.permissions {
+		if r := p.CheckedPermissions(ctx, resource, names...); r != nil {
+			return r
+		}
+	}
+	return nil
+}
+
 // CheckType of resource and target type
 func (perm *RosourcePermission) CheckType(resource any) bool {
 	var res reflect.Type

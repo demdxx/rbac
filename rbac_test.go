@@ -32,6 +32,7 @@ func TestViewRole(t *testing.T) {
 	assert.True(t, role.CheckPermissions(ctx, &testObject{name: `test`}, `view1`))
 	assert.True(t, role.CheckPermissions(ctx, &testObject{name: `test`}, `view2`))
 	assert.True(t, role.CheckPermissions(ctx, &testObject{name: `test`}, `view3`))
+	assert.NotNil(t, role.CheckedPermissions(ctx, &testObject{name: `test`}, `view1`))
 	assert.True(t, role.HasPermission(`view1`))
 	assert.False(t, role.HasPermission(`view-bad`))
 	assert.Panics(t, func() { role.CheckPermissions(ctx, nil) })
