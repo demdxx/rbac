@@ -21,6 +21,9 @@ type Permission interface {
 	// CheckPermissions to accept to resource
 	CheckPermissions(ctx context.Context, resource any, names ...string) bool
 
+	// CheckedPermission returns child permission for resource which has been checked as allowed
+	CheckedPermissions(ctx context.Context, resource any, names ...string) Permission
+
 	// ChildPermissions list returns list of child permissions
 	ChildPermissions() []Permission
 
@@ -82,6 +85,22 @@ func (perm *SimplePermission) CheckPermissions(ctx context.Context, resource any
 		}
 	}
 	return false
+}
+
+// CheckedPermission returns child permission for resource which has been checked as allowed
+func (perm *SimplePermission) CheckedPermissions(ctx context.Context, resource any, names ...string) Permission {
+	if len(names) == 0 {
+		return nil
+	}
+	if indexOfStrArr(perm.name, names) && perm.callCallback(ctx, resource, names...) {
+		return perm
+	}
+	for _, p := range perm.permissions {
+		if r := p.CheckedPermissions(ctx, resource, names...); r != nil {
+			return r
+		}
+	}
+	return nil
 }
 
 // ChildPermissions returns list of child permissions

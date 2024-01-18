@@ -74,6 +74,24 @@ func (r *role) CheckPermissions(ctx context.Context, resource any, names ...stri
 	return false
 }
 
+// CheckedPermission returns child permission for resource which has been checked as allowed
+func (r *role) CheckedPermissions(ctx context.Context, resource any, names ...string) Permission {
+	if len(names) == 0 {
+		return nil
+	}
+	for _, p := range r.permissions {
+		if perm := p.CheckedPermissions(ctx, resource, names...); perm != nil {
+			return perm
+		}
+	}
+	for _, r := range r.roles {
+		if perm := r.CheckedPermissions(ctx, resource, names...); perm != nil {
+			return perm
+		}
+	}
+	return nil
+}
+
 // ChildPermissions returns list of child permissions
 func (r *role) ChildPermissions() []Permission {
 	return r.permissions

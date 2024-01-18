@@ -18,3 +18,9 @@ func (d *dummy) ChildRoles() []Role                                          { r
 func (d *dummy) Role(_ string) Role                                          { return nil }
 func (d *dummy) HasRole(_ string) bool                                       { return false }
 func (d *dummy) Ext() any                                                    { return nil }
+func (d *dummy) CheckedPermissions(_ context.Context, _ any, _ ...string) Permission {
+	if d.allow {
+		return d
+	}
+	return nil
+}
