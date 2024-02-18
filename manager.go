@@ -89,6 +89,33 @@ func (mng *Manager) Role(ctx context.Context, name string) Role {
 	return mng.roles[name]
 }
 
+// Role returns role by name
+func (mng *Manager) Roles(ctx context.Context, names ...string) []Role {
+	if len(names) > 0 {
+		roles := make([]Role, 0, len(names))
+		for _, name := range names {
+			if role := mng.Role(ctx, name); role != nil {
+				roles = append(roles, role)
+			}
+		}
+		return roles
+	}
+
+	// Return all roles
+	mng.mx.RLock()
+	defer mng.mx.RUnlock()
+
+	roles := make([]Role, 0, len(mng.roles))
+	if mng.roleAccessors != nil {
+		roles = append(roles,
+			xtypes.Slice[Role](mng.roleAccessors.Roles(ctx)).Apply(
+				func(role Role) Role { return mng.prepareRole(ctx, role) })...,
+		)
+	}
+
+	return append(roles, xtypes.Map[string, Role](mng.roles).Values()...)
+}
+
 // Roles returns all or selected roles
 func (mng *Manager) RegisterRole(ctx context.Context, roles ...Role) *Manager {
 	for i, role := range roles {

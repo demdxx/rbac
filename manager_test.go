@@ -68,6 +68,10 @@ func TestManager(t *testing.T) {
 	assert.Equal(t, 5, len(tm.ObjectPermissions((*testObject)(nil), `*.owner`)))
 	assert.Equal(t, 0, len(tm.ObjectPermissions(nil)))
 
+	assert.Equal(t, 2, len(tm.Roles(ctx)))
+	assert.Equal(t, 2, len(tm.Roles(ctx, `test`, `admin`)))
+	assert.Equal(t, 1, len(tm.Roles(ctx, `admin`)))
+
 	assert.Nil(t, tm.Permission(`not.exists`))
 	assert.NotNil(t, tm.Permission(`rbac.testObject.view.owner`))
 
