@@ -1,3 +1,7 @@
+.PHONY: lint
+lint: ## Run linter
+	golangci-lint run -v ./...
+
 .PHONY: fmt
 fmt: ## Run formatting code
 	@echo "Fix formatting"
