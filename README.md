@@ -30,27 +30,36 @@ Here's a simple example of how to use RBAC in your Go application:
 import (
     "context"
     "fmt"
-
     "your/package/model" // Import your application's model
-
     "github.com/demdxx/rbac"
 )
 
+// Create a new RBAC manager of roles and permissions in your application
+pm := rbac.NewManager(nil)
+
 // Define a callback function for custom permission checks
-callback := func(ctx context.Context, resource any, names ...string) bool {
+callback := func(ctx context.Context, resource any, perm back.Permission) bool {
     // Implement your custom permission logic here
-    return rbac.ExtData(ctx).(*model.RoleContext).DebugMode
+    return perm.Ext().(*model.RoleContext).DebugMode || strings.HasSuffix(resource.Name(), `.all`)
 }
 
+// Register your application's model objects
+pm.RegisterObject(&model.User{}, callback)
+
+// Register new permissions for the user object as
+// [user.view.owner, user.veiw.account, user.view.all, user.edit.owner, user.edit.account, user.edit.all]
+pm.RegisterNewOwningPermissions((*model.User)(nil), []string{`view`, `edit`})
+
 // Create an admin role with permissions and the custom check callback
-adminRole := rbac.NewRole(`admin`, rbac.WithSubPermissins(
+pm.RegisterRole(ctx, rbac.NewRole(`admin`, rbac.WithPermissins(
     rbac.NewSimplePermission(`access`),
-    rbac.NewRosourcePermission(`view`, &model.User{}, rbac.WithCustomCheck(callback, &roleContext)),
-))
+    rbac.NewResourcePermission(`register`, &model.User{}, rbac.WithCustomCheck(callback, &roleContext)),
+    `user.*.all`,
+)))
 
 // Check if a user has access and view permissions
 if adminRole.CheckPermissions(ctx, userObject, `access`) {
-    if !adminRole.CheckPermissions(ctx, userObject, `view`) {
+    if !adminRole.CheckPermissions(ctx, userObject, `view.*`) {
         return ErrNoViewPermissions
     }
     fmt.Println("Access granted")

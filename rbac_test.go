@@ -14,14 +14,15 @@ func TestNewRole(t *testing.T) {
 	assert.NoError(t, err, `NewRole`)
 	assert.Equal(t, `test`, role.Name())
 	assert.False(t, role.CheckPermissions(ctx, &testObject{}, `view`))
+	assert.Nil(t, role.Permission(`view`))
 }
 
 func TestViewRole(t *testing.T) {
 	ctx := context.TODO()
-	viewer := MustNewRole(`viewer`, WithSubPermissins(
+	viewer := MustNewRole(`viewer`, WithPermissions(
 		MustNewSimplePermission(`view1`),
-		MustNewRosourcePermission(`view2`, (*testObject)(nil)),
-		MustNewRosourcePermission(`view3`, (*testObject)(nil), WithCustomCheck(testCustomCallback)),
+		MustNewResourcePermission(`view2`, (*testObject)(nil)),
+		MustNewResourcePermission(`view3`, (*testObject)(nil), WithCustomCheck(testCustomCallback)),
 	))
 	role, err := NewRole(`test`, WithChildRoles(viewer))
 	assert.NoError(t, err, `NewRole`)
@@ -37,6 +38,10 @@ func TestViewRole(t *testing.T) {
 	assert.False(t, role.HasPermission(`view-bad`))
 	assert.Panics(t, func() { role.CheckPermissions(ctx, nil) })
 	assert.Equal(t, 0, len(role.ChildPermissions()))
+
+	assert.NotNil(t, role.Permission(`view1`))
+	assert.NotNil(t, role.Permission(`rbac.testObject.view2`))
+
 	if assert.Equal(t, 1, len(role.ChildRoles())) {
 		assert.Equal(t, `viewer`, role.ChildRoles()[0].Name())
 		assert.Equal(t, 3, len(role.ChildRoles()[0].ChildPermissions()))

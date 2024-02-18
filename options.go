@@ -29,18 +29,41 @@ func WithChildRoles(roles ...Role) Option {
 	}
 }
 
-// WithSubPermissins apply subpermission
-func WithSubPermissins(permissions ...Permission) Option {
+// WithPermissions apply subpermission
+func WithPermissions(permissions ...any) Option {
+	vecPermissions := make([]Permission, 0, len(permissions))
+	verPermPreload := make([]string, 0, len(permissions))
+	for _, p := range permissions {
+		switch vl := p.(type) {
+		case Permission:
+			vecPermissions = append(vecPermissions, vl)
+		case []Permission:
+			vecPermissions = append(vecPermissions, vl...)
+		case string:
+			verPermPreload = append(verPermPreload, vl)
+		case []string:
+			verPermPreload = append(verPermPreload, vl...)
+		default:
+			panic(wrapError(ErrInvalidOptionParam, `WithPermissions`))
+		}
+	}
 	return func(obj any) error {
 		switch o := obj.(type) {
 		case *SimplePermission:
-			o.permissions = permissions
-		case *RosourcePermission:
-			o.permissions = permissions
+			o.permissions = vecPermissions
+			if len(verPermPreload) > 0 {
+				return wrapError(ErrInvalidOptionParam, `WithPermissions::SimplePermission (preload permissions not allowed)`)
+			}
+		case *ResourcePermission:
+			o.permissions = vecPermissions
+			if len(verPermPreload) > 0 {
+				return wrapError(ErrInvalidOptionParam, `WithPermissions::ResourcePermission (preload permissions not allowed)`)
+			}
 		case *role:
-			o.permissions = permissions
+			o.permissions = vecPermissions
+			o.preloadPermissions = verPermPreload
 		default:
-			return wrapError(ErrInvalidOption, `WithSubPermissins`)
+			return wrapError(ErrInvalidOption, `WithPermissions`)
 		}
 		return nil
 	}
@@ -52,7 +75,7 @@ func WithSubPermissins(permissions ...Permission) Option {
 //	callback := func(ctx context.Context, resource any, names ...string) bool {
 //	  return ExtData(ctx).(*model.RoleContext).DebugMode
 //	}
-//	perm := NewRosourcePermission(`view`, &model.User{}, WithCustomCheck(callback, &roleContext))
+//	perm := NewResourcePermission(`view`, &model.User{}, WithCustomCheck(callback, &roleContext))
 func WithCustomCheck(f any, data ...any) Option {
 	return func(obj any) error {
 		if f == nil {
@@ -71,7 +94,7 @@ func WithCustomCheck(f any, data ...any) Option {
 			}
 			o.checkFnkResType = ftype.In(0)
 			o.extData = dataVal
-		case *RosourcePermission:
+		case *ResourcePermission:
 			o.checkFnk = reflect.ValueOf(f)
 			ftype := o.checkFnk.Type()
 			if ftype.NumIn() != 3 {
@@ -89,6 +112,19 @@ func WithCustomCheck(f any, data ...any) Option {
 	}
 }
 
+// WithoutCustomCheck remove custom check
+func WithoutCustomCheck(obj any) error {
+	switch o := obj.(type) {
+	case *SimplePermission:
+		o.checkFnk = reflect.Value{}
+	case *ResourcePermission:
+		o.checkFnk = reflect.Value{}
+	default:
+		return wrapError(ErrInvalidOption, `WithoutCustomCheck`)
+	}
+	return nil
+}
+
 // WithExtData for the role or permission
 func WithExtData(data any) Option {
 	type setExtI interface {
@@ -98,7 +134,7 @@ func WithExtData(data any) Option {
 		switch o := obj.(type) {
 		case *SimplePermission:
 			o.extData = data
-		case *RosourcePermission:
+		case *ResourcePermission:
 			o.extData = data
 		case *role:
 			o.extData = data

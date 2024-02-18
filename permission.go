@@ -3,7 +3,6 @@ package rbac
 import (
 	"context"
 	"errors"
-	"reflect"
 )
 
 var (
@@ -19,10 +18,10 @@ type Permission interface {
 	Name() string
 
 	// CheckPermissions to accept to resource
-	CheckPermissions(ctx context.Context, resource any, names ...string) bool
+	CheckPermissions(ctx context.Context, resource any, patterns ...string) bool
 
 	// CheckedPermission returns child permission for resource which has been checked as allowed
-	CheckedPermissions(ctx context.Context, resource any, names ...string) Permission
+	CheckedPermissions(ctx context.Context, resource any, patterns ...string) Permission
 
 	// ChildPermissions list returns list of child permissions
 	ChildPermissions() []Permission
@@ -30,235 +29,15 @@ type Permission interface {
 	// Permission returns permission by name
 	Permission(name string) Permission
 
+	// Permissions returns list of permissions by pattern
+	Permissions(patterns ...string) []Permission
+
 	// HasPermission returns true if permission has child permission
-	HasPermission(name string) bool
+	HasPermission(patterns ...string) bool
+
+	// MatchPermissionPattern returns true if permission matches any of the patterns
+	MatchPermissionPattern(patterns ...string) bool
 
 	// Ext returns additional user data
 	Ext() any
-}
-
-// SimplePermission implementation with simple functionality
-type SimplePermission struct {
-	name            string
-	extData         any
-	checkFnkResType reflect.Type
-	checkFnk        reflect.Value // func(ctx, resource, names ...string)
-	permissions     []Permission
-}
-
-// NewSimplePermission object with custom checker
-func NewSimplePermission(name string, options ...Option) (Permission, error) {
-	perm := &SimplePermission{name: name}
-	for _, opt := range options {
-		if err := opt(perm); err != nil {
-			return nil, err
-		}
-	}
-	return perm, nil
-}
-
-// MustNewSimplePermission with name and resource type
-func MustNewSimplePermission(name string, options ...Option) Permission {
-	perm, err := NewSimplePermission(name, options...)
-	if err != nil {
-		panic(err)
-	}
-	return perm
-}
-
-// Name of the permission
-func (perm *SimplePermission) Name() string {
-	return perm.name
-}
-
-// CheckPermissions to accept to resource
-func (perm *SimplePermission) CheckPermissions(ctx context.Context, resource any, names ...string) bool {
-	if len(names) == 0 {
-		panic(ErrInvalidCheckParams)
-	}
-	if indexOfStrArr(perm.name, names) && perm.callCallback(ctx, resource, names...) {
-		return true
-	}
-	for _, p := range perm.permissions {
-		if p.CheckPermissions(ctx, resource, names...) {
-			return true
-		}
-	}
-	return false
-}
-
-// CheckedPermission returns child permission for resource which has been checked as allowed
-func (perm *SimplePermission) CheckedPermissions(ctx context.Context, resource any, names ...string) Permission {
-	if len(names) == 0 {
-		return nil
-	}
-	if indexOfStrArr(perm.name, names) && perm.callCallback(ctx, resource, names...) {
-		return perm
-	}
-	for _, p := range perm.permissions {
-		if r := p.CheckedPermissions(ctx, resource, names...); r != nil {
-			return r
-		}
-	}
-	return nil
-}
-
-// ChildPermissions returns list of child permissions
-func (perm *SimplePermission) ChildPermissions() []Permission {
-	return perm.permissions
-}
-
-// Permission returns permission by name
-func (perm *SimplePermission) Permission(name string) Permission {
-	if perm.name == name {
-		return perm
-	}
-	for _, p := range perm.permissions {
-		if p.Name() == name {
-			return p
-		} else if child := p.Permission(name); child != nil {
-			return child
-		}
-	}
-	return nil
-}
-
-// HasPermission returns true if permission has permission
-func (perm *SimplePermission) HasPermission(name string) bool {
-	return perm.Permission(name) != nil
-}
-
-// Ext returns additional user data
-func (perm *SimplePermission) Ext() any {
-	return perm.extData
-}
-
-func (perm *SimplePermission) callCallback(ctx context.Context, resource any, names ...string) bool {
-	if perm.checkFnk.Kind() != reflect.Func {
-		return true
-	}
-
-	// Get reflect resource value
-	res := reflect.ValueOf(resource)
-
-	// Check first parameter type
-	if perm.checkFnkResType.Kind() != reflect.Interface && perm.checkFnkResType != res.Type() {
-		return false
-	}
-	in := []reflect.Value{
-		reflect.ValueOf(ctx), res,
-		reflect.ValueOf((Permission)(perm)),
-	}
-	if resp := perm.checkFnk.Call(in); len(resp) == 1 {
-		return resp[0].Bool()
-	}
-	return false
-}
-
-// RosourcePermission implementation for some specific object type
-type RosourcePermission struct {
-	SimplePermission
-	resType reflect.Type
-}
-
-// NewRosourcePermission object with custom checker and base type
-func NewRosourcePermission(name string, resType any, options ...Option) (Permission, error) {
-	perm := &RosourcePermission{
-		SimplePermission: SimplePermission{name: name},
-		resType:          getResType(resType),
-	}
-	if perm.resType == nil {
-		return nil, ErrInvalidResouceType
-	}
-	for _, opt := range options {
-		if err := opt(perm); err != nil {
-			return nil, err
-		}
-	}
-	return perm, nil
-}
-
-// MustNewRosourcePermission with name and resource type
-func MustNewRosourcePermission(name string, resType any, options ...Option) Permission {
-	perm, err := NewRosourcePermission(name, resType, options...)
-	if err != nil {
-		panic(err)
-	}
-	return perm
-}
-
-// CheckPermissions to accept to resource
-func (perm *RosourcePermission) CheckPermissions(ctx context.Context, resource any, names ...string) bool {
-	if indexOfStrArr(perm.name, names) && perm.CheckType(resource) && perm.callCallback(ctx, resource, names...) {
-		return true
-	}
-	for _, p := range perm.permissions {
-		if p.CheckPermissions(ctx, resource, names...) {
-			return true
-		}
-	}
-	return false
-}
-
-// CheckedPermission returns child permission for resource which has been checked as allowed
-func (perm *RosourcePermission) CheckedPermissions(ctx context.Context, resource any, names ...string) Permission {
-	if len(names) == 0 {
-		return nil
-	}
-	if indexOfStrArr(perm.name, names) && perm.CheckType(resource) && perm.callCallback(ctx, resource, names...) {
-		return perm
-	}
-	for _, p := range perm.permissions {
-		if r := p.CheckedPermissions(ctx, resource, names...); r != nil {
-			return r
-		}
-	}
-	return nil
-}
-
-// CheckType of resource and target type
-func (perm *RosourcePermission) CheckType(resource any) bool {
-	var res reflect.Type
-	switch t := resource.(type) {
-	case nil:
-	case reflect.Type:
-		res = t
-	default:
-		res = reflect.TypeOf(resource)
-	}
-	return perm.resType == res
-}
-
-// ChildPermissions returns list of child permissions
-func (perm *RosourcePermission) ChildPermissions() []Permission {
-	return perm.permissions
-}
-
-// Ext returns additional user data
-func (perm *RosourcePermission) Ext() any {
-	return perm.extData
-}
-
-func indexOfStrArr(s string, arr []string) bool {
-	for _, v := range arr {
-		if v == s {
-			return true
-		}
-	}
-	return false
-}
-
-func getResType(resource any) (res reflect.Type) {
-	switch r := resource.(type) {
-	case nil:
-		return nil
-	case reflect.Type:
-		res = r
-	default:
-		res = reflect.TypeOf(resource)
-	}
-	for res.Kind() == reflect.Interface {
-		res = res.Elem()
-	}
-	return res
 }

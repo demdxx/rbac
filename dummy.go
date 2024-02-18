@@ -13,7 +13,9 @@ func (d *dummy) Name() string                                                { r
 func (d *dummy) CheckPermissions(_ context.Context, _ any, _ ...string) bool { return d.allow }
 func (d *dummy) ChildPermissions() []Permission                              { return nil }
 func (d *dummy) Permission(_ string) Permission                              { return nil }
-func (d *dummy) HasPermission(_ string) bool                                 { return false }
+func (d *dummy) Permissions(_ ...string) []Permission                        { return nil }
+func (d *dummy) HasPermission(_ ...string) bool                              { return false }
+func (d *dummy) MatchPermissionPattern(_ ...string) bool                     { return false }
 func (d *dummy) ChildRoles() []Role                                          { return nil }
 func (d *dummy) Role(_ string) Role                                          { return nil }
 func (d *dummy) HasRole(_ string) bool                                       { return false }

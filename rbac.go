@@ -1,6 +1,10 @@
 package rbac
 
-import "context"
+import (
+	"context"
+
+	"github.com/demdxx/xtypes"
+)
 
 // Role base interface
 type Role interface {
@@ -26,6 +30,10 @@ type role struct {
 
 	// List of permissions
 	permissions []Permission
+
+	// List of wildcard permissions to preload
+	// after role creation and register in the manager
+	preloadPermissions []string
 
 	// Additional data
 	extData any
@@ -114,9 +122,28 @@ func (r *role) Permission(name string) Permission {
 	return nil
 }
 
+// Permissions returns list of child permissions
+func (r *role) Permissions(patterns ...string) []Permission {
+	var result []Permission
+	for _, p := range r.permissions {
+		if len(patterns) == 0 || patterns[0] == `*` || p.MatchPermissionPattern(patterns...) {
+			result = append(result, p)
+		}
+	}
+	for _, r := range r.roles {
+		result = append(result, r.Permissions(patterns...)...)
+	}
+	return result
+}
+
 // HasPermission returns true if permission has permission
-func (r *role) HasPermission(name string) bool {
-	return r.Permission(name) != nil
+func (r *role) HasPermission(patterns ...string) bool {
+	return len(r.Permissions(patterns...)) > 0
+}
+
+// MatchPermissionPattern returns true if permission matches any of the patterns
+func (r *role) MatchPermissionPattern(patterns ...string) bool {
+	return false
 }
 
 // ChildRoles returns list of child roles
@@ -147,4 +174,33 @@ func (r *role) HasRole(name string) bool {
 // Ext returns additional user data
 func (r *role) Ext() any {
 	return r.extData
+}
+
+// Prepare role for usage
+func (r *role) Prepare(ctx context.Context, perms permissionReader) Role {
+	if len(r.preloadPermissions) > 0 {
+		r.AddPermissions(perms.Permissions(r.preloadPermissions...)...)
+		r.preloadPermissions = nil
+	}
+	for i, role := range r.roles {
+		switch rolei := role.(type) {
+		case rolePreparer:
+			r.roles[i] = rolei.Prepare(ctx, perms)
+		}
+	}
+	return r
+}
+
+// AddPermissions to the role and remove duplicates
+func (r *role) AddPermissions(permissions ...Permission) {
+	r.permissions = append(r.permissions, permissions...)
+	names := map[string]bool{}
+	r.permissions = xtypes.Slice[Permission](r.permissions).Filter(func(p Permission) bool {
+		name := p.Name()
+		not := !names[name]
+		if not {
+			names[name] = true
+		}
+		return not
+	})
 }
