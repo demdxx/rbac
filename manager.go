@@ -20,6 +20,9 @@ const (
 
 var owningTypes = []string{OwnOwner, OwnAccount, OwnAll}
 
+// RoleLoader function for filling roles by custom rules
+type RoleFilter func(ctx context.Context, role Role) bool
+
 type objectItem struct {
 	objType      any
 	checkCallbac any
@@ -114,6 +117,24 @@ func (mng *Manager) Roles(ctx context.Context, names ...string) []Role {
 	}
 
 	return append(roles, xtypes.Map[string, Role](mng.roles).Values()...)
+}
+
+// RolesByFilter returns roles by filter
+func (mng *Manager) RolesByFilter(ctx context.Context, filter RoleFilter) []Role {
+	mng.mx.RLock()
+	defer mng.mx.RUnlock()
+
+	roles := make([]Role, 0, len(mng.roles))
+	if mng.roleAccessors != nil {
+		roles = append(roles, mng.roleAccessors.RolesByFilter(ctx, filter)...)
+	}
+
+	for _, role := range mng.roles {
+		if filter(ctx, role) {
+			roles = append(roles, role)
+		}
+	}
+	return roles
 }
 
 // Roles returns all or selected roles

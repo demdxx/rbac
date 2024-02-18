@@ -21,8 +21,9 @@ type RoleLoader interface {
 
 // RoleAccessors interface for accessing roles
 type RoleAccessors interface {
-	Roles(ctx context.Context, names ...string) []Role
 	Role(ctx context.Context, name string) Role
+	Roles(ctx context.Context, names ...string) []Role
+	RolesByFilter(ctx context.Context, filter RoleFilter) []Role
 }
 
 type cachedRoleLoader struct {
@@ -74,6 +75,24 @@ func (crl *cachedRoleLoader) Roles(ctx context.Context, names ...string) []Role 
 	roles := make([]Role, 0, len(crl.rolesCache))
 	for _, role := range crl.rolesCache {
 		roles = append(roles, role)
+	}
+	return roles
+}
+
+// RolesByFilter returns roles by filter
+func (crl *cachedRoleLoader) RolesByFilter(ctx context.Context, filter RoleFilter) []Role {
+	if time.Since(crl.lastCacheUpdate) > crl.lifetimeCache {
+		crl.refreshCache(ctx)
+	}
+
+	crl.mx.RLock()
+	defer crl.mx.RUnlock()
+
+	roles := make([]Role, 0, len(crl.rolesCache))
+	for _, role := range crl.rolesCache {
+		if filter(ctx, role) {
+			roles = append(roles, role)
+		}
 	}
 	return roles
 }
