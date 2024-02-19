@@ -4,13 +4,103 @@ import (
 	"errors"
 	"path/filepath"
 	"reflect"
+	"regexp"
 	"strings"
 )
 
 var (
 	ErrEmptyPermissionName   = errors.New(`empty permission name`)
 	ErrInvalidPermissionName = errors.New(`invalid permission name`)
+	ErrInvalidPattern        = errors.New(`invalid pattern`)
 )
+
+func nextBlockIndex(pattern string, start int) int {
+	for i := start; i < len(pattern); i++ {
+		if pattern[i] == '.' {
+			return i
+		}
+	}
+	return len(pattern)
+}
+
+// Match permission pattern
+// Example:
+// `*` or `**` matches any string
+// `test.*` matches `test.it`, `test.it.owner`, `test.it.admin
+// `test.*.owner` matches `test.it.owner`, `test.object.owner`
+// `test.*.*` matches `test.it.owner`, `test.object.owner`
+// `test.*.?wner` matches `test.it.owner`, `test.object.owner
+// `test.*.{owner|admin}` matches `test.it.owner`, `test.object.admin`
+// `test.%r{[a-z]+}` matches `test.it.owner`, `test.object.admin` (regexp)
+// `test.**` matches `test.it.owner`, `test.object.admin` (** must be at the end)
+func match(pattern, name string) (ok bool, err error) {
+	if pattern == `*` || pattern == `**` {
+		return true, nil
+	}
+
+	for nsi, psi := 0, 0; ; {
+		// Search pattern block
+		nnpi := nextBlockIndex(name, nsi)
+		pnpi := nextBlockIndex(pattern, psi)
+
+		if pnpi <= psi {
+			return nsi <= nnpi, nil
+		}
+
+		curNamePart := name[nsi:nnpi]
+		curPattern := pattern[psi:pnpi]
+		if curPattern == `**` {
+			if pnpi == len(pattern) {
+				return true, nil
+			}
+			return false, wrapError(ErrInvalidPattern, `** must be at the end`)
+		}
+		if ok, err := matchPatternPart(curPattern, curNamePart); err != nil || !ok {
+			return false, err
+		}
+
+		nsi = nnpi + 1
+		psi = pnpi + 1
+		if nsi >= len(name) && psi >= len(pattern) {
+			return true, nil
+		}
+	}
+}
+
+func matchPatternPart(pattern, name string) (bool, error) {
+	if pattern == `*` || pattern == `**` {
+		return true, nil
+	}
+	if strings.HasPrefix(pattern, `%r{`) && strings.HasSuffix(pattern, `}`) {
+		return regexp.MatchString(pattern[3:len(pattern)-1], name)
+	}
+	if strings.HasPrefix(pattern, `{`) && strings.HasSuffix(pattern, `}`) {
+		parts := strings.Split(pattern[1:len(pattern)-1], `|`)
+		for _, p := range parts {
+			if p == name {
+				return true, nil
+			}
+		}
+	}
+	return matchEqual(pattern, name), nil
+}
+
+func matchEqual(pattern, name string) bool {
+	if pattern == name {
+		return true
+	}
+	if len(pattern) != len(name) {
+		return false
+	}
+	// Check for ? in pattern
+	for i := 0; i < len(pattern); i++ {
+		if pattern[i] == '?' || pattern[i] == name[i] {
+			continue
+		}
+		return false
+	}
+	return true
+}
 
 // checkPattern checks if the string matches any of the patterns
 //
@@ -21,7 +111,7 @@ var (
 // checkPattern(`test.it.admin`, `test.*.owner`) => false
 func checkPattern(name string, patterns ...string) bool {
 	for _, pattern := range patterns {
-		if ok, _ := filepath.Match(pattern, name); ok {
+		if ok, _ := match(pattern, name); ok {
 			return true
 		}
 	}
@@ -31,16 +121,16 @@ func checkPattern(name string, patterns ...string) bool {
 // checkResourcePattern checks if the resource name matches any of the patterns
 //
 // Example:
-// checkResourcePattern(`test.Object`, `owner`, `*`,) => true
+// checkResourcePattern(`test.Object`, `owner`, `*`) => true
 // checkResourcePattern(`test.Object`, `register.owner`, `register.*`) => true
 // checkResourcePattern(`test.Object`, `register.owner`, `test.Object.register.*`) => true
 func checkResourcePattern(resName, name string, patterns ...string) bool {
 	fullName := resName + `.` + name
 	for _, pattern := range patterns {
-		if ok, _ := filepath.Match(pattern, fullName); ok {
+		if ok, _ := match(pattern, fullName); ok {
 			return true
 		}
-		if ok, _ := filepath.Match(resName+`.`+pattern, fullName); ok {
+		if ok, _ := match(resName+`.`+pattern, fullName); ok {
 			return true
 		}
 	}
