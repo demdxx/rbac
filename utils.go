@@ -23,7 +23,7 @@ func nextBlockIndex(pattern string, start int) int {
 	return len(pattern)
 }
 
-// Match permission pattern
+// MatchName permission pattern
 // Example:
 // `*` or `**` matches any string
 // `test.*` matches `test.it`, `test.it.owner`, `test.it.admin
@@ -33,7 +33,7 @@ func nextBlockIndex(pattern string, start int) int {
 // `test.*.{owner|admin}` matches `test.it.owner`, `test.object.admin`
 // `test.%r{[a-z]+}` matches `test.it.owner`, `test.object.admin` (regexp)
 // `test.**` matches `test.it.owner`, `test.object.admin` (** must be at the end)
-func match(pattern, name string) (ok bool, err error) {
+func MatchName(pattern, name string) (ok bool, err error) {
 	if pattern == `*` || pattern == `**` {
 		return true, nil
 	}
@@ -44,7 +44,10 @@ func match(pattern, name string) (ok bool, err error) {
 		pnpi := nextBlockIndex(pattern, psi)
 
 		if pnpi <= psi {
-			return nsi <= nnpi, nil
+			return nnpi <= nsi, nil
+		}
+		if nnpi <= nsi {
+			return false, nil
 		}
 
 		curNamePart := name[nsi:nnpi]
@@ -111,7 +114,7 @@ func matchEqual(pattern, name string) bool {
 // checkPattern(`test.it.admin`, `test.*.owner`) => false
 func checkPattern(name string, patterns ...string) bool {
 	for _, pattern := range patterns {
-		if ok, _ := match(pattern, name); ok {
+		if ok, _ := MatchName(pattern, name); ok {
 			return true
 		}
 	}
@@ -127,10 +130,10 @@ func checkPattern(name string, patterns ...string) bool {
 func checkResourcePattern(resName, name string, patterns ...string) bool {
 	fullName := resName + `.` + name
 	for _, pattern := range patterns {
-		if ok, _ := match(pattern, fullName); ok {
+		if ok, _ := MatchName(pattern, fullName); ok {
 			return true
 		}
-		if ok, _ := match(resName+`.`+pattern, fullName); ok {
+		if ok, _ := MatchName(resName+`.`+pattern, fullName); ok {
 			return true
 		}
 	}

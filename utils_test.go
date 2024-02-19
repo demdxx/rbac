@@ -27,6 +27,7 @@ func TestPatternPermissionNameCheck(t *testing.T) {
 		{name: `test.es.admin`, patterns: []string{`test.??.owner`}, expected: false},
 		{name: `test.boo.admin`, patterns: []string{`test.{foo|boo|it}.{owner|admin}`}, expected: true},
 		{name: `test.goo.admin`, patterns: []string{`test.%r{[a-z]*}.%r{(admin|[0-9]+)}`}, expected: true},
+		{name: `test.goo.admin`, patterns: []string{`test.*.*.*`}, expected: false},
 	}
 
 	for _, test := range tests {
