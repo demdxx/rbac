@@ -197,7 +197,7 @@ func (mng *Manager) Permissions(patterns ...string) []Permission {
 func (mng *Manager) ObjectPermissions(obj any, patterns ...string) []Permission {
 	if item := mng.objectItem(obj); item != nil {
 		if len(patterns) == 0 || len(patterns) == 1 && patterns[0] == `*` {
-			return mng.Permissions(GetResName(obj) + `.*`)
+			return mng.Permissions(GetResName(obj) + `.**`)
 		}
 		return mng.Permissions(xtypes.Slice[string](patterns).Apply(
 			func(pattern string) string { return GetResName(obj) + `.` + pattern },
