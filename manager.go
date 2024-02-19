@@ -136,7 +136,10 @@ func (mng *Manager) RolesByFilter(ctx context.Context, filter RoleFilter) []Role
 
 	roles := make([]Role, 0, len(mng.roles))
 	if mng.roleAccessors != nil {
-		roles = append(roles, mng.roleAccessors.RolesByFilter(ctx, filter)...)
+		roles = append(roles,
+			xtypes.Slice[Role](mng.roleAccessors.RolesByFilter(ctx, filter)).Apply(
+				func(role Role) Role { return mng.prepareRole(ctx, role) })...,
+		)
 	}
 
 	for _, role := range mng.roles {
