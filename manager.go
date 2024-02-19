@@ -67,6 +67,16 @@ func NewManagerWithLoader(roleLoader RoleLoader, lifetimeCache time.Duration) *M
 	return NewManager(newCachedRoleLoader(roleLoader, lifetimeCache))
 }
 
+// ObjectByName returns object by name
+func (mng *Manager) ObjectByName(name string) any {
+	mng.mx.RLock()
+	defer mng.mx.RUnlock()
+	if item, ok := mng.objects[name]; ok {
+		return item.objType
+	}
+	return nil
+}
+
 // RegisterObject for processing
 func (mng *Manager) RegisterObject(objType, checkCallbac any) *Manager {
 	mng.objects[GetResName(objType)] = &objectItem{

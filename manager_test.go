@@ -62,6 +62,10 @@ func TestManager(t *testing.T) {
 	// Register role with permissions of the system administrator
 	tm.RegisterRole(ctx, MustNewRole(`admin`, WithPermissions(`rbac.*.all`)))
 
+	// Check object reading
+	assert.NotNil(t, tm.ObjectByName(GetResName((*testObject)(nil))))
+	assert.Nil(t, tm.ObjectByName(`not.exists`))
+
 	// Check permissions
 	assert.Equal(t, 33, len(tm.Permissions()))
 	assert.Equal(t, 15, len(tm.ObjectPermissions((*testObject)(nil))))
