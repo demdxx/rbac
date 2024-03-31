@@ -16,6 +16,23 @@ var (
 // Option apply function to object
 type Option func(obj any) error
 
+// WithDescription of the role or permission
+func WithDescription(description string) Option {
+	return func(obj any) error {
+		switch o := obj.(type) {
+		case *role:
+			o.description = description
+		case *SimplePermission:
+			o.description = description
+		case *ResourcePermission:
+			o.description = description
+		default:
+			return wrapError(ErrInvalidOption, `WithDescription`)
+		}
+		return nil
+	}
+}
+
 // WithChildRoles of the role
 func WithChildRoles(roles ...Role) Option {
 	return func(obj any) error {

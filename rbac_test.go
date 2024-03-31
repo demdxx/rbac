@@ -10,9 +10,10 @@ import (
 func TestNewRole(t *testing.T) {
 	ctx := context.TODO()
 
-	role, err := NewRole(`test`, WithChildRoles(MustNewRole(`viewer`)))
+	role, err := NewRole(`test`, WithChildRoles(MustNewRole(`viewer`)), WithDescription(`Test role`))
 	assert.NoError(t, err, `NewRole`)
 	assert.Equal(t, `test`, role.Name())
+	assert.Equal(t, `Test role`, role.Description())
 	assert.False(t, role.CheckPermissions(ctx, &testObject{}, `view`))
 	assert.Nil(t, role.Permission(`view`))
 }
@@ -21,7 +22,7 @@ func TestViewRole(t *testing.T) {
 	ctx := context.TODO()
 	viewer := MustNewRole(`viewer`, WithPermissions(
 		MustNewSimplePermission(`view1`),
-		MustNewResourcePermission(`view2`, (*testObject)(nil)),
+		MustNewResourcePermission(`view2`, (*testObject)(nil), WithDescription(`view testObject permission`)),
 		MustNewResourcePermission(`view3`, (*testObject)(nil), WithCustomCheck(testCustomCallback)),
 	))
 	role, err := NewRole(`test`, WithChildRoles(viewer))

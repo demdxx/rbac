@@ -17,6 +17,9 @@ var (
 type Permission interface {
 	Name() string
 
+	// Description of the permission
+	Description() string
+
 	// CheckPermissions to accept to resource
 	CheckPermissions(ctx context.Context, resource any, patterns ...string) bool
 

@@ -25,6 +25,9 @@ type role struct {
 	// Name of the role
 	name string
 
+	// description of the role
+	description string
+
 	// List of linked roles
 	roles []Role
 
@@ -62,6 +65,11 @@ func MustNewRole(name string, options ...Option) Role {
 // Name of the role
 func (r *role) Name() string {
 	return r.name
+}
+
+// Description of the role
+func (r *role) Description() string {
+	return r.description
 }
 
 // CheckPermissions of some resource

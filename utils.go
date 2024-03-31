@@ -6,6 +6,8 @@ import (
 	"reflect"
 	"regexp"
 	"strings"
+
+	"github.com/demdxx/xtypes"
 )
 
 var (
@@ -188,4 +190,31 @@ func validatePermissionName(name string) error {
 		return wrapError(ErrInvalidPermissionName, `permission name contains wildcard * -> `+name)
 	}
 	return nil
+}
+
+// Included returns true if testRole is included in the base role or equal
+func Included(base Role, testRole Role) bool {
+	if base == nil || testRole == nil {
+		return false
+	}
+	if base.Name() == testRole.Name() {
+		return true
+	}
+	basePermissions := xtypes.Slice[Permission](base.Permissions()).
+		Sort(func(a, b Permission) bool { return a.Name() < b.Name() })
+	testPermissions := xtypes.Slice[Permission](testRole.Permissions()).
+		Sort(func(a, b Permission) bool { return a.Name() < b.Name() })
+	if len(basePermissions) < len(testPermissions) {
+		return false
+	}
+	j := 0
+	for _, perm := range basePermissions {
+		if testPermissions[j].Name() != perm.Name() {
+			continue
+		}
+		if j = j + 1; j >= len(testPermissions) {
+			return true
+		}
+	}
+	return false
 }

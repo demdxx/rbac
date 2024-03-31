@@ -2,6 +2,7 @@ package rbac
 
 import (
 	"context"
+	"reflect"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -18,9 +19,11 @@ type testExt struct {
 func TestSimplePermission(t *testing.T) {
 	ctx := context.TODO()
 
-	viewPerm, err := NewSimplePermission(`view`, WithCustomCheck(testCustomCallback))
+	viewPerm, err := NewSimplePermission(`view`, WithCustomCheck(testCustomCallback), WithDescription(`View permission`))
 	assert.NoError(t, err, `NewSimplePermission`)
 	assert.Panics(t, func() { viewPerm.CheckPermissions(ctx, &testObject{}) })
+	assert.Equal(t, `view`, viewPerm.Name())
+	assert.Equal(t, `View permission`, viewPerm.Description())
 
 	perm, err := NewSimplePermission(`top-level`, WithPermissions(viewPerm))
 	assert.NoError(t, err, `NewSimplePermission`)
@@ -35,11 +38,17 @@ func TestSimplePermission(t *testing.T) {
 func TestResourcePermission(t *testing.T) {
 	ctx := context.TODO()
 
-	viewPerm, err := NewResourcePermission(`view`, (*testObject)(nil), WithCustomCheck(testCustomCallback))
+	viewPerm, err := NewResourcePermission(`view`, (*testObject)(nil), WithCustomCheck(testCustomCallback), WithDescription(`view testObject permission`))
 	assert.NoError(t, err, `TestResourcePermission`)
 	listPerm, err := NewResourcePermission(`list`, (*testObject)(nil), WithCustomCheck(testCustomCallback))
 	assert.NoError(t, err, `TestResourcePermission`)
 	listViewPerm := MustNewSimplePermission(`list-view`, WithPermissions(viewPerm, listPerm))
+
+	assert.Equal(t, `rbac.testObject.view`, viewPerm.Name())
+	assert.Equal(t, `rbac.testObject`, viewPerm.ResourceName())
+	assert.Equal(t, reflect.Struct, viewPerm.ResourceType().Kind())
+	assert.Equal(t, `view testObject permission`, viewPerm.Description())
+	assert.Equal(t, `rbac.testObject.list`, listPerm.Name())
 
 	// Test resource names
 	t.Run(`nameCheck`, func(t *testing.T) {

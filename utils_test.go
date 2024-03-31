@@ -64,3 +64,39 @@ func TestResourceNameExtractor(t *testing.T) {
 		})
 	}
 }
+
+func TestIncluded(t *testing.T) {
+	t.Run(`equal`, func(t *testing.T) {
+		r1, _ := NewRole(`r1`, WithPermissions(MustNewSimplePermission(`p1`)))
+		assert.True(t, Included(r1, r1))
+	})
+
+	t.Run(`nil`, func(t *testing.T) {
+		r1, _ := NewRole(`r1`, WithPermissions(MustNewSimplePermission(`p1`)))
+		assert.False(t, Included(r1, nil))
+	})
+
+	t.Run(`included`, func(t *testing.T) {
+		r1, _ := NewRole(`r1`, WithPermissions(MustNewSimplePermission(`p1`)))
+		r2, _ := NewRole(`r2`, WithPermissions(MustNewSimplePermission(`p1`)))
+		assert.True(t, Included(r1, r2))
+	})
+
+	t.Run(`intersection`, func(t *testing.T) {
+		r1, _ := NewRole(`r1`, WithPermissions(MustNewSimplePermission(`p1`), MustNewSimplePermission(`p2`)))
+		r2, _ := NewRole(`r2`, WithPermissions(MustNewSimplePermission(`p1`)))
+		assert.True(t, Included(r1, r2))
+	})
+
+	t.Run(`not-intersection`, func(t *testing.T) {
+		r1, _ := NewRole(`r1`, WithPermissions(MustNewSimplePermission(`p1`), MustNewSimplePermission(`p2`)))
+		r2, _ := NewRole(`r2`, WithPermissions(MustNewSimplePermission(`p1`)))
+		assert.False(t, Included(r2, r1))
+	})
+
+	t.Run(`not-included`, func(t *testing.T) {
+		r1, _ := NewRole(`r1`, WithPermissions(MustNewSimplePermission(`p1`)))
+		r2, _ := NewRole(`r2`, WithPermissions(MustNewSimplePermission(`p2`)))
+		assert.False(t, Included(r1, r2))
+	})
+}

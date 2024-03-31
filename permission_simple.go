@@ -8,6 +8,7 @@ import (
 // SimplePermission implementation with simple functionality
 type SimplePermission struct {
 	name            string
+	description     string
 	extData         any
 	checkFnkResType reflect.Type
 	checkFnk        reflect.Value // func(ctx, resource, names ...string)
@@ -40,6 +41,11 @@ func MustNewSimplePermission(name string, options ...Option) *SimplePermission {
 // Name of the permission
 func (perm *SimplePermission) Name() string {
 	return perm.name
+}
+
+// Description of the permission
+func (perm *SimplePermission) Description() string {
+	return perm.description
 }
 
 // CheckPermissions to accept to resource
@@ -121,7 +127,7 @@ func (perm *SimplePermission) Ext() any {
 	return perm.extData
 }
 
-func (perm *SimplePermission) callCallback(ctx context.Context, curPerm Permission, resource any, names ...string) bool {
+func (perm *SimplePermission) callCallback(ctx context.Context, curPerm Permission, resource any, _ ...string) bool {
 	if perm.checkFnk.Kind() != reflect.Func {
 		return true
 	}
