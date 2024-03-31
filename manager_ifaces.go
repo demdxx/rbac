@@ -40,7 +40,7 @@ func newCachedRoleLoader(loader RoleLoader, lifetimeCache time.Duration) *cached
 	return &cachedRoleLoader{
 		loader:          loader,
 		rolesCache:      make(map[string]Role),
-		lastCacheUpdate: time.Now().Add(-lifetimeCache),
+		lastCacheUpdate: time.Now().AddDate(-10, 0, 0),
 		lifetimeCache:   lifetimeCache,
 	}
 }
