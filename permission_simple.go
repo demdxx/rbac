@@ -61,7 +61,8 @@ func (perm *SimplePermission) CheckedPermissions(ctx context.Context, resource a
 	if len(patterns) == 0 || perm == nil {
 		return nil
 	}
-	if perm.MatchPermissionPattern(patterns...) && perm.callCallback(ctx, nil, resource, patterns...) {
+	expanded := ExpandPermissionPatterns(resource, patterns...)
+	if perm.MatchPermissionPattern(expanded...) && perm.callCallback(ctx, nil, resource, patterns...) {
 		return perm
 	}
 	for _, p := range perm.permissions {
@@ -102,14 +103,9 @@ func (perm *SimplePermission) Permissions(patterns ...string) []Permission {
 		res = append(res, perm)
 	}
 	for _, p := range perm.permissions {
-		if p.MatchPermissionPattern(patterns...) {
-			res = append(res, p)
-		}
-		if child := p.Permissions(patterns...); len(child) > 0 {
-			res = append(res, child...)
-		}
+		res = append(res, p.Permissions(patterns...)...)
 	}
-	return res
+	return uniquePermissions(res)
 }
 
 // HasPermission returns true if permission has permission
@@ -128,15 +124,12 @@ func (perm *SimplePermission) Ext() any {
 }
 
 func (perm *SimplePermission) callCallback(ctx context.Context, curPerm Permission, resource any, _ ...string) bool {
-	if perm.checkFnk.Kind() != reflect.Func {
+	if !perm.checkFnk.IsValid() || perm.checkFnk.Kind() != reflect.Func {
 		return true
 	}
 
-	// Get reflect resource value
-	res := reflect.ValueOf(resource)
-
-	// Check first parameter type
-	if perm.checkFnkResType.Kind() != reflect.Interface && perm.checkFnkResType != res.Type() {
+	res, ok := valueForCallback(resource, perm.checkFnkResType)
+	if !ok {
 		return false
 	}
 	if curPerm == nil {
@@ -146,8 +139,43 @@ func (perm *SimplePermission) callCallback(ctx context.Context, curPerm Permissi
 		reflect.ValueOf(ctx), res,
 		reflect.ValueOf((Permission)(curPerm)),
 	}
-	if resp := perm.checkFnk.Call(in); len(resp) == 1 {
+	resp := perm.checkFnk.Call(in)
+	if len(resp) == 1 && resp[0].Kind() == reflect.Bool {
 		return resp[0].Bool()
 	}
 	return false
+}
+
+func valueForCallback(resource any, expected reflect.Type) (reflect.Value, bool) {
+	if expected == nil {
+		return reflect.Value{}, false
+	}
+	if resource == nil {
+		if expected.Kind() == reflect.Interface {
+			return reflect.Zero(expected), true
+		}
+		return reflect.Value{}, false
+	}
+	res := reflect.ValueOf(resource)
+	if !res.IsValid() {
+		return reflect.Value{}, false
+	}
+	if expected.Kind() == reflect.Interface {
+		if res.Type().AssignableTo(expected) {
+			return res, true
+		}
+		return reflect.Value{}, false
+	}
+	if res.Type() == expected {
+		return res, true
+	}
+	if res.Kind() == reflect.Ptr && !res.IsNil() && res.Type().Elem() == expected {
+		return res.Elem(), true
+	}
+	if expected.Kind() == reflect.Ptr && res.Type() == expected.Elem() {
+		ptr := reflect.New(res.Type())
+		ptr.Elem().Set(res)
+		return ptr, true
+	}
+	return reflect.Value{}, false
 }

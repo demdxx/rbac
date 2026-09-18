@@ -11,6 +11,10 @@ fmt: ## Run formatting code
 test: ## Run unit tests
 	go test -v -tags "${TAGS}" -race ./...
 
+.PHONY: bench
+bench: ## Run benchmarks (time + allocations)
+	go test -run=^$$ -bench=. -benchmem -count=3 ./...
+
 .PHONY: tidy
 tidy: ## Run go mod tidy
 	go mod tidy

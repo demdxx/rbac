@@ -8,8 +8,9 @@ import (
 // ResourcePermission implementation for some specific object type
 type ResourcePermission struct {
 	SimplePermission
-	resName string
-	resType reflect.Type
+	resName     string
+	resType     reflect.Type
+	matchByName bool
 }
 
 // NewResourcePermission object with custom checker and base type
@@ -59,21 +60,7 @@ func (perm *ResourcePermission) ResourceType() reflect.Type {
 
 // CheckPermissions to accept to resource
 func (perm *ResourcePermission) CheckPermissions(ctx context.Context, resource any, patterns ...string) bool {
-	if perm == nil || len(patterns) == 0 || resource == nil {
-		return false
-	}
-	if true &&
-		checkResourcePattern(perm.resName, perm.name, patterns...) &&
-		perm.CheckType(resource) &&
-		perm.callCallback(ctx, perm, resource, patterns...) {
-		return true
-	}
-	for _, p := range perm.permissions {
-		if p.CheckPermissions(ctx, resource, patterns...) {
-			return true
-		}
-	}
-	return false
+	return perm.CheckedPermissions(ctx, resource, patterns...) != nil
 }
 
 // CheckedPermission returns child permission for resource which has been checked as allowed
@@ -81,9 +68,9 @@ func (perm *ResourcePermission) CheckedPermissions(ctx context.Context, resource
 	if perm == nil || len(patterns) == 0 || resource == nil {
 		return nil
 	}
-	if true &&
-		checkResourcePattern(perm.resName, perm.name, patterns...) &&
-		perm.CheckType(resource) &&
+	expanded := ExpandPermissionPatterns(resource, patterns...)
+	if checkResourcePattern(perm.resName, perm.name, expanded...) &&
+		perm.matchResource(resource) &&
 		perm.callCallback(ctx, perm, resource, patterns...) {
 		return perm
 	}
@@ -93,6 +80,22 @@ func (perm *ResourcePermission) CheckedPermissions(ctx context.Context, resource
 		}
 	}
 	return nil
+}
+
+func (perm *ResourcePermission) matchResource(resource any) bool {
+	if perm.matchByName {
+		return perm.CheckResourceName(resource)
+	}
+	return perm.CheckType(resource)
+}
+
+// CheckResourceName reports whether resource shares this permission's RBAC resource name.
+func (perm *ResourcePermission) CheckResourceName(resource any) bool {
+	if perm == nil {
+		return false
+	}
+	name := GetResName(resource)
+	return name != `` && name == perm.resName
 }
 
 // CheckType of resource and target type
@@ -107,7 +110,7 @@ func (perm *ResourcePermission) ChildPermissions() []Permission {
 
 // Permission returns permission by name
 func (perm *ResourcePermission) Permission(name string) Permission {
-	if perm.name == name {
+	if perm.name == name || perm.Name() == name {
 		return perm
 	}
 	for _, p := range perm.permissions {
@@ -130,14 +133,9 @@ func (perm *ResourcePermission) Permissions(patterns ...string) []Permission {
 		res = append(res, perm)
 	}
 	for _, p := range perm.permissions {
-		if p.MatchPermissionPattern(patterns...) {
-			res = append(res, p)
-		}
-		if child := p.Permissions(patterns...); len(child) > 0 {
-			res = append(res, child...)
-		}
+		res = append(res, p.Permissions(patterns...)...)
 	}
-	return res
+	return uniquePermissions(res)
 }
 
 // HasPermission returns true if permission has permission

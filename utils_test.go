@@ -28,6 +28,7 @@ func TestPatternPermissionNameCheck(t *testing.T) {
 		{name: `test.boo.admin`, patterns: []string{`test.{foo|boo|it}.{owner|admin}`}, expected: true},
 		{name: `test.goo.admin`, patterns: []string{`test.%r{[a-z]*}.%r{(admin|[0-9]+)}`}, expected: true},
 		{name: `test.goo.admin`, patterns: []string{`test.*.*.*`}, expected: false},
+		{name: `test.it.admin`, patterns: []string{`test.{foo|boo}`}, expected: false},
 	}
 
 	for _, test := range tests {
@@ -63,6 +64,23 @@ func TestResourceNameExtractor(t *testing.T) {
 			assert.Equal(t, test.expected, GetResName(test.resource))
 		})
 	}
+}
+
+func TestMatchNameInvalidDoubleStar(t *testing.T) {
+	ok, err := MatchName(`test.**.admin`, `test.it.admin`)
+	assert.False(t, ok)
+	assert.Error(t, err)
+}
+
+func TestCheckResourcePattern(t *testing.T) {
+	assert.True(t, checkResourcePattern(`user`, `view.owner`, `view.*`))
+	assert.True(t, checkResourcePattern(`user`, `view.owner`, `user.view.owner`))
+	assert.False(t, checkResourcePattern(`user`, `view.owner`, `view.all`))
+}
+
+func TestGetResTypeInputs(t *testing.T) {
+	assert.Equal(t, GetResType(&testObject{}), GetResType(testObject{}))
+	assert.Equal(t, GetResType(&testObject{}), GetResType(GetResType(&testObject{})))
 }
 
 func TestIncluded(t *testing.T) {

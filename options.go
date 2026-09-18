@@ -86,13 +86,9 @@ func WithPermissions(permissions ...any) Option {
 	}
 }
 
-// WithCustomCheck function and additional data if need to use in checker
-// Example:
-//
-//	callback := func(ctx context.Context, resource any, names ...string) bool {
-//	  return ExtData(ctx).(*model.RoleContext).DebugMode
-//	}
-//	perm := NewResourcePermission(`view`, &model.User{}, WithCustomCheck(callback, &roleContext))
+// WithCustomCheck function and additional data if need to use in checker.
+// Callback signature: func(ctx context.Context, resource T, perm Permission) bool
+// Resource argument type is not required to match the registered Go type (proxy objects allowed).
 func WithCustomCheck(f any, data ...any) Option {
 	return func(obj any) error {
 		if f == nil {
@@ -102,31 +98,49 @@ func WithCustomCheck(f any, data ...any) Option {
 		if len(data) > 0 {
 			dataVal = data[0]
 		}
+		fn := reflect.ValueOf(f)
+		resType, err := validateCheckCallback(fn)
+		if err != nil {
+			return err
+		}
 		switch o := obj.(type) {
 		case *SimplePermission:
-			o.checkFnk = reflect.ValueOf(f)
-			ftype := o.checkFnk.Type()
-			if ftype.NumIn() != 3 {
-				return wrapError(ErrInvalidOptionParam, `WithCustomCheck::callback`)
-			}
-			o.checkFnkResType = ftype.In(0)
+			o.checkFnk = fn
+			o.checkFnkResType = resType
 			o.extData = dataVal
 		case *ResourcePermission:
-			o.checkFnk = reflect.ValueOf(f)
-			ftype := o.checkFnk.Type()
-			if ftype.NumIn() != 3 {
-				return wrapError(ErrInvalidOptionParam, `WithCustomCheck::callback`)
-			}
-			o.checkFnkResType = ftype.In(0)
-			if o.checkFnkResType.Kind() != reflect.Interface && o.checkFnkResType != o.resType {
-				return wrapError(ErrInvalidOptionParam, `WithCustomCheck::(callback invalid argument != resource.Type)`)
-			}
+			o.checkFnk = fn
+			o.checkFnkResType = resType
 			o.extData = dataVal
 		default:
 			return wrapError(ErrInvalidOption, `WithCustomCheck`)
 		}
 		return nil
 	}
+}
+
+// WithMatchByResourceName matches ResourcePermission by RBACResourceName, not Go type.
+func WithMatchByResourceName() Option {
+	return func(obj any) error {
+		switch o := obj.(type) {
+		case *ResourcePermission:
+			o.matchByName = true
+		default:
+			return wrapError(ErrInvalidOption, `WithMatchByResourceName`)
+		}
+		return nil
+	}
+}
+
+func validateCheckCallback(fn reflect.Value) (reflect.Type, error) {
+	if fn.Kind() != reflect.Func {
+		return nil, wrapError(ErrInvalidOptionParam, `WithCustomCheck::callback`)
+	}
+	ftype := fn.Type()
+	if ftype.NumIn() != 3 || ftype.NumOut() != 1 || ftype.Out(0).Kind() != reflect.Bool {
+		return nil, wrapError(ErrInvalidOptionParam, `WithCustomCheck::callback`)
+	}
+	return ftype.In(1), nil
 }
 
 // WithoutCustomCheck remove custom check

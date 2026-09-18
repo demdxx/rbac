@@ -88,14 +88,14 @@ func TestResourcePermission(t *testing.T) {
 
 	// Test invalid callback
 	t.Run(`perm3`, func(t *testing.T) {
-		perm3, err := NewResourcePermission(`top-level3`, (*testObject)(nil), WithCustomCheck(func(ctx context.Context, obj *testObject, perm Permission) {}))
-		assert.NoError(t, err, `NewSimplePermission:top-level3`)
-		assert.Equal(t, `rbac.testObject.top-level3`, perm3.Name())
-		assert.False(t, perm3.CheckPermissions(ctx, &testObject{name: `test`}, `top-level3`), `CheckPermissions`)
-		assert.True(t, perm3.HasPermission(`rbac.testObject.top-level3`), `HasPermission`)
-		assert.False(t, perm3.HasPermission(`top-level3`), `HasPermission`)
-		assert.False(t, perm3.HasPermission(`view`), `HasPermission`)
-		assert.Nil(t, perm3.CheckedPermissions(ctx, &testObject{name: `test`}, `top-level3`), `CheckedPermissions`)
+		_, err := NewResourcePermission(`top-level3`, (*testObject)(nil), WithCustomCheck(func(ctx context.Context, obj *testObject, perm Permission) {}))
+		assert.Error(t, err, `void callback must be rejected`)
+	})
+
+	t.Run(`lookup`, func(t *testing.T) {
+		assert.Equal(t, viewPerm, viewPerm.Permission(`view`))
+		assert.Equal(t, viewPerm, viewPerm.Permission(`rbac.testObject.view`))
+		assert.Nil(t, viewPerm.Permission(`missing`))
 	})
 
 	// Test invalid resource type

@@ -26,6 +26,7 @@ type RoleFilter func(ctx context.Context, role Role) bool
 type objectItem struct {
 	objType      any
 	checkCallbac any
+	matchByName  bool
 }
 
 // Manager of the roles and permissions
@@ -77,16 +78,32 @@ func (mng *Manager) ObjectByName(name string) any {
 	return nil
 }
 
-// RegisterObject for processing
+// RegisterObject registers a typed object. Created permissions match by
+// permission name and Go type (CheckType), as before.
 func (mng *Manager) RegisterObject(objType, checkCallbac any) *Manager {
+	return mng.registerObject(objType, checkCallbac, false)
+}
+
+// RegisterResource registers a resource by RBACResourceName. Created permissions
+// match by permission name and resource name, without requiring the same Go type.
+func (mng *Manager) RegisterResource(objType, checkCallbac any) *Manager {
+	return mng.registerObject(objType, checkCallbac, true)
+}
+
+func (mng *Manager) registerObject(objType, checkCallbac any, matchByName bool) *Manager {
+	mng.mx.Lock()
+	defer mng.mx.Unlock()
 	mng.objects[GetResName(objType)] = &objectItem{
 		objType:      objType,
 		checkCallbac: checkCallbac,
+		matchByName:  matchByName,
 	}
 	return mng
 }
 
 func (mng *Manager) objectItem(obj any) *objectItem {
+	mng.mx.RLock()
+	defer mng.mx.RUnlock()
 	return mng.objects[GetResName(obj)]
 }
 
@@ -236,8 +253,13 @@ func (mng *Manager) RegisterNewPermissions(resType any, names []string, options 
 		}
 	} else {
 		// Register resource permissions
-		if obj := mng.objectItem(resType); obj != nil && obj.checkCallbac != nil {
-			options = append([]Option{WithCustomCheck(obj.checkCallbac)}, options...)
+		if obj := mng.objectItem(resType); obj != nil {
+			if obj.checkCallbac != nil {
+				options = append([]Option{WithCustomCheck(obj.checkCallbac)}, options...)
+			}
+			if obj.matchByName {
+				options = append([]Option{WithMatchByResourceName()}, options...)
+			}
 		}
 		for _, name := range names {
 			perm, err := NewResourcePermission(name, resType, options...)

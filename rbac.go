@@ -77,13 +77,33 @@ func (r *role) CheckPermissions(ctx context.Context, resource any, names ...stri
 	if len(names) == 0 {
 		panic(ErrInvalidCheckParams)
 	}
+	return r.checkPermissions(ctx, resource, names, nil)
+}
+
+func (r *role) checkPermissions(ctx context.Context, resource any, names []string, visited map[*role]struct{}) bool {
+	if r == nil {
+		return false
+	}
+	if visited == nil {
+		visited = map[*role]struct{}{}
+	}
+	if _, ok := visited[r]; ok {
+		return false
+	}
+	visited[r] = struct{}{}
 	for _, p := range r.permissions {
 		if p.CheckPermissions(ctx, resource, names...) {
 			return true
 		}
 	}
-	for _, r := range r.roles {
-		if r.CheckPermissions(ctx, resource, names...) {
+	for _, child := range r.roles {
+		if cr, ok := child.(*role); ok {
+			if cr.checkPermissions(ctx, resource, names, visited) {
+				return true
+			}
+			continue
+		}
+		if child != nil && child.CheckPermissions(ctx, resource, names...) {
 			return true
 		}
 	}
@@ -95,14 +115,36 @@ func (r *role) CheckedPermissions(ctx context.Context, resource any, names ...st
 	if len(names) == 0 {
 		return nil
 	}
+	return r.checkedPermissions(ctx, resource, names, nil)
+}
+
+func (r *role) checkedPermissions(ctx context.Context, resource any, names []string, visited map[*role]struct{}) Permission {
+	if r == nil {
+		return nil
+	}
+	if visited == nil {
+		visited = map[*role]struct{}{}
+	}
+	if _, ok := visited[r]; ok {
+		return nil
+	}
+	visited[r] = struct{}{}
 	for _, p := range r.permissions {
 		if perm := p.CheckedPermissions(ctx, resource, names...); perm != nil {
 			return perm
 		}
 	}
-	for _, r := range r.roles {
-		if perm := r.CheckedPermissions(ctx, resource, names...); perm != nil {
-			return perm
+	for _, child := range r.roles {
+		if cr, ok := child.(*role); ok {
+			if perm := cr.checkedPermissions(ctx, resource, names, visited); perm != nil {
+				return perm
+			}
+			continue
+		}
+		if child != nil {
+			if perm := child.CheckedPermissions(ctx, resource, names...); perm != nil {
+				return perm
+			}
 		}
 	}
 	return nil
@@ -115,6 +157,20 @@ func (r *role) ChildPermissions() []Permission {
 
 // Permission returns child permission by name
 func (r *role) Permission(name string) Permission {
+	return r.findPermission(name, nil)
+}
+
+func (r *role) findPermission(name string, visited map[*role]struct{}) Permission {
+	if r == nil {
+		return nil
+	}
+	if visited == nil {
+		visited = map[*role]struct{}{}
+	}
+	if _, ok := visited[r]; ok {
+		return nil
+	}
+	visited[r] = struct{}{}
 	for _, p := range r.permissions {
 		if p.Name() == name {
 			return p
@@ -122,9 +178,17 @@ func (r *role) Permission(name string) Permission {
 			return child
 		}
 	}
-	for _, r := range r.roles {
-		if p := r.Permission(name); p != nil {
-			return p
+	for _, child := range r.roles {
+		if cr, ok := child.(*role); ok {
+			if p := cr.findPermission(name, visited); p != nil {
+				return p
+			}
+			continue
+		}
+		if child != nil {
+			if p := child.Permission(name); p != nil {
+				return p
+			}
 		}
 	}
 	return nil
@@ -132,14 +196,34 @@ func (r *role) Permission(name string) Permission {
 
 // Permissions returns list of child permissions
 func (r *role) Permissions(patterns ...string) []Permission {
+	return uniquePermissions(r.collectPermissions(patterns, nil))
+}
+
+func (r *role) collectPermissions(patterns []string, visited map[*role]struct{}) []Permission {
+	if r == nil {
+		return nil
+	}
+	if visited == nil {
+		visited = map[*role]struct{}{}
+	}
+	if _, ok := visited[r]; ok {
+		return nil
+	}
+	visited[r] = struct{}{}
 	var result []Permission
 	for _, p := range r.permissions {
 		if len(patterns) == 0 || patterns[0] == `*` || p.MatchPermissionPattern(patterns...) {
 			result = append(result, p)
 		}
 	}
-	for _, r := range r.roles {
-		result = append(result, r.Permissions(patterns...)...)
+	for _, child := range r.roles {
+		if cr, ok := child.(*role); ok {
+			result = append(result, cr.collectPermissions(patterns, visited)...)
+			continue
+		}
+		if child != nil {
+			result = append(result, child.Permissions(patterns...)...)
+		}
 	}
 	return result
 }
@@ -161,14 +245,38 @@ func (r *role) ChildRoles() []Role {
 
 // Role returns role by name
 func (r *role) Role(name string) Role {
+	return r.findRole(name, nil)
+}
+
+func (r *role) findRole(name string, visited map[*role]struct{}) Role {
+	if r == nil {
+		return nil
+	}
+	if visited == nil {
+		visited = map[*role]struct{}{}
+	}
+	if _, ok := visited[r]; ok {
+		return nil
+	}
+	visited[r] = struct{}{}
 	if r.Name() == name {
 		return r
 	}
-	for _, r := range r.roles {
-		if r.Name() == name {
-			return r
-		} else if child := r.Role(name); child != nil {
+	for _, child := range r.roles {
+		if cr, ok := child.(*role); ok {
+			if found := cr.findRole(name, visited); found != nil {
+				return found
+			}
+			continue
+		}
+		if child == nil {
+			continue
+		}
+		if child.Name() == name {
 			return child
+		}
+		if found := child.Role(name); found != nil {
+			return found
 		}
 	}
 	return nil

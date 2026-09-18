@@ -142,6 +142,87 @@ func checkResourcePattern(resName, name string, patterns ...string) bool {
 	return false
 }
 
+// PermissionPatternExpander optionally expands check patterns using object knowledge.
+// Original patterns are always kept; returned values are appended.
+type PermissionPatternExpander interface {
+	RBACPermissionPatterns(patterns ...string) []string
+}
+
+// ExpandPermissionPatterns resolves check patterns from a resource.
+//
+// Rules:
+//  1. Always keep the original patterns (manual names stay valid).
+//  2. If resource implements PermissionPatternExpander, append its extra patterns.
+//  3. Otherwise if GetResName(resource) is not empty, append resName+"."+pattern
+//     for each pattern that does not already have that prefix.
+//  4. nil resource or empty name: originals only.
+func ExpandPermissionPatterns(resource any, patterns ...string) []string {
+	if len(patterns) == 0 {
+		return patterns
+	}
+	out := append([]string{}, patterns...)
+	if resource == nil {
+		return out
+	}
+	if expander, ok := resource.(PermissionPatternExpander); ok {
+		return appendUniqueStrings(out, expander.RBACPermissionPatterns(patterns...)...)
+	}
+	name := GetResName(resource)
+	if name == `` {
+		return out
+	}
+	prefix := name + `.`
+	extra := make([]string, 0, len(patterns))
+	for _, pattern := range patterns {
+		if pattern == `` || strings.HasPrefix(pattern, prefix) {
+			continue
+		}
+		extra = append(extra, prefix+pattern)
+	}
+	return appendUniqueStrings(out, extra...)
+}
+
+func appendUniqueStrings(dst []string, extra ...string) []string {
+	if len(extra) == 0 {
+		return dst
+	}
+	seen := make(map[string]struct{}, len(dst)+len(extra))
+	for _, s := range dst {
+		seen[s] = struct{}{}
+	}
+	for _, s := range extra {
+		if s == `` {
+			continue
+		}
+		if _, ok := seen[s]; ok {
+			continue
+		}
+		seen[s] = struct{}{}
+		dst = append(dst, s)
+	}
+	return dst
+}
+
+func uniquePermissions(perms []Permission) []Permission {
+	if len(perms) < 2 {
+		return perms
+	}
+	seen := make(map[string]struct{}, len(perms))
+	out := make([]Permission, 0, len(perms))
+	for _, p := range perms {
+		if p == nil {
+			continue
+		}
+		name := p.Name()
+		if _, ok := seen[name]; ok {
+			continue
+		}
+		seen[name] = struct{}{}
+		out = append(out, p)
+	}
+	return out
+}
+
 // GetResName returns resource name
 func GetResName(resource any) string {
 	type rName interface {

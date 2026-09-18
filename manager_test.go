@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 type testRoleLoader struct{}
@@ -104,4 +105,44 @@ func TestManager(t *testing.T) {
 		assert.True(t, role.CheckPermissions(ctx, &testObject{}, `view.*`))
 		assert.True(t, role.CheckPermissions(ctx, &testExt{}, `view.*`))
 	}
+}
+
+func TestRegisterNewOwningPermissionsRequiresType(t *testing.T) {
+	tm := NewManager(nil)
+	assert.ErrorIs(t, tm.RegisterNewOwningPermissions(nil, []string{`view`}), ErrResourceTypeRequired)
+}
+
+func TestRegisterObjectVsRegisterResource(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run(`object requires type`, func(t *testing.T) {
+		tm := NewManager(nil)
+		tm.RegisterObject((*namedUser)(nil), nil)
+		require.NoError(t, tm.RegisterNewPermission((*namedUser)(nil), `view`))
+		role := MustNewRole(`r`, WithPermissions(tm.Permission(`user.view`)))
+
+		assert.True(t, role.CheckPermissions(ctx, &namedUser{}, `view`))
+		assert.False(t, role.CheckPermissions(ctx, &userAccess{Owner: true}, `view`))
+		assert.False(t, role.CheckPermissions(ctx, &namedPost{}, `view`))
+	})
+
+	t.Run(`resource matches name without type`, func(t *testing.T) {
+		var seen any
+		tm := NewManager(nil)
+		tm.RegisterResource((*namedUser)(nil), func(ctx context.Context, resource any, perm Permission) bool {
+			seen = resource
+			if access, ok := resource.(*userAccess); ok {
+				return access.Owner
+			}
+			return true
+		})
+		require.NoError(t, tm.RegisterNewPermission((*namedUser)(nil), `view`))
+		role := MustNewRole(`r`, WithPermissions(tm.Permission(`user.view`)))
+
+		assert.True(t, role.CheckPermissions(ctx, &namedUser{}, `view`))
+		assert.True(t, role.CheckPermissions(ctx, &userAccess{Owner: true}, `view`))
+		assert.Equal(t, &userAccess{Owner: true}, seen)
+		assert.False(t, role.CheckPermissions(ctx, &userAccess{Owner: false}, `view`))
+		assert.False(t, role.CheckPermissions(ctx, &namedPost{}, `view`))
+	})
 }

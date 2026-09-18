@@ -5,18 +5,50 @@
 [![GoDoc](https://godoc.org/github.com/demdxx/rbac?status.svg)](https://godoc.org/github.com/demdxx/rbac)
 [![Coverage Status](https://coveralls.io/repos/github/demdxx/rbac/badge.svg)](https://coveralls.io/github/demdxx/rbac)
 
-RBAC (Role-Based Access Control) is a powerful module for Go that simplifies access control in your applications. It allows you to manage roles and permissions, making it easier to control who can perform specific actions within your system.
+Role-based access control for Go. The **permission name** is the basis of every check. An object is optional: it can compose the name and supply data for a callback. A Go type constraint is extra and only applies when you register a typed object.
 
 ## Features
 
-- **Role Definitions:** Create roles with associated permissions to represent different user roles or access levels.
-- **Permission Checks:** Easily check if a user or entity has the required permissions to perform actions.
-- **Customizable Checks:** Implement custom permission checks using callback functions to adapt the module to your specific needs.
-- **Integration:** Seamlessly integrate RBAC into your Go applications to enhance security and access control.
+- **Roles** with nested roles and permission preload by pattern.
+- **SimplePermission** — named right (`account.register`, `access`). Works with or without an object.
+- **ResourcePermission** — `{resource}.{action}[.{owner|account|all}]`.
+- **RegisterObject** — match by name **and** Go type (`CheckType`).
+- **RegisterResource** — match by name **and** `RBACResourceName()` only (DTO/proxy allowed).
+- **Name resolution** — full name, or short pattern + object (`register` + Account → `account.register`).
+- **Owning suffixes** — `RegisterNewOwningPermissions` builds `.owner` / `.account` / `.all`. Instance rules live in your callback.
+- **Custom checks** — `func(ctx context.Context, resource any, perm Permission) bool`.
+
+## Permission names
+
+| Style | Example | What happens |
+| --- | --- | --- |
+| Manual | `account.register`, `user.view.owner` | Used as-is |
+| Automatic | `register` + object with `RBACResourceName() == "account"` | Also tries `account.register` |
+| Custom | `RBACPermissionPatterns(...)` on the object | Extra patterns from the object; originals are kept |
+
+`GetResName` uses `RBACResourceName()` when present, otherwise `package.Type`.
+
+`view.*` matches `view.owner`, `view.account`, and `view.all`. Who is the owner is **not** built in — implement that in the callback.
+
+`HasPermission` is a catalog check (no object, no callback). `CheckPermissions` authorizes a call.
+
+## RegisterObject vs RegisterResource
+
+```text
+CheckPermissions
+  → expand patterns from the object
+  → match permission name
+  → RegisterObject: also CheckType
+  → RegisterResource / WithMatchByResourceName: also same RBACResourceName
+  → optional callback
+```
+
+- **Object** (default `NewResourcePermission`): same name + same Go type. A DTO with the same resource name is denied.
+- **Resource**: same name + same `RBACResourceName`. A `PostAccess` DTO can stand in for `Post` and carry `Owner` / `AccountID`.
+
+Direct `NewResourcePermission` is typed unless you pass `WithMatchByResourceName()`.
 
 ## Installation
-
-You can install the RBAC module using Go's package manager:
 
 ```bash
 go get github.com/demdxx/rbac
@@ -24,54 +56,117 @@ go get github.com/demdxx/rbac
 
 ## Usage
 
-Here's a simple example of how to use RBAC in your Go application:
+Runnable end-to-end cases live in [`example_app_test.go`](example_app_test.go) (`TestExampleAppSuite`).
 
 ```go
+package app
+
 import (
     "context"
-    "fmt"
-    "your/package/model" // Import your application's model
+    "strings"
+
     "github.com/demdxx/rbac"
 )
 
-// Create a new RBAC manager of roles and permissions in your application
-pm := rbac.NewManager(nil)
-
-// Define a callback function for custom permission checks
-callback := func(ctx context.Context, resource any, perm back.Permission) bool {
-    // Implement your custom permission logic here
-    return perm.Ext().(*model.RoleContext).DebugMode || strings.HasSuffix(resource.Name(), `.all`)
+type User struct {
+    ID        uint64
+    AccountID uint64
 }
 
-// Register your application's model objects
-pm.RegisterObject(&model.User{}, callback)
+func (*User) RBACResourceName() string { return "user" }
 
-// Register new permissions for the user object as
-// [user.view.owner, user.veiw.account, user.view.all, user.edit.owner, user.edit.account, user.edit.all]
-pm.RegisterNewOwningPermissions((*model.User)(nil), []string{`view`, `edit`})
+type Post struct {
+    AuthorID  uint64
+    AccountID uint64
+}
 
-// Create an admin role with permissions and the custom check callback
-pm.RegisterRole(ctx, rbac.NewRole(`admin`, rbac.WithPermissins(
-    rbac.NewSimplePermission(`access`),
-    rbac.NewResourcePermission(`register`, &model.User{}, rbac.WithCustomCheck(callback, &roleContext)),
-    `user.*.all`,
-)))
+func (*Post) RBACResourceName() string { return "post" }
 
-// Check if a user has access and view permissions
-if adminRole.CheckPermissions(ctx, userObject, `access`) {
-    if !adminRole.CheckPermissions(ctx, userObject, `view.*`) {
-        return ErrNoViewPermissions
+// DTO for checks that need extra fields the entity does not have.
+type PostAccess struct {
+    Owner     bool
+    AccountID uint64
+}
+
+func (*PostAccess) RBACResourceName() string { return "post" }
+
+func cover(perm rbac.Permission) string {
+    name := perm.Name()
+    if i := strings.LastIndex(name, "."); i >= 0 {
+        return name[i+1:]
     }
-    fmt.Println("Access granted")
+    return name
+}
+
+func check(ctx context.Context, resource any, perm rbac.Permission) bool {
+    switch cover(perm) {
+    case rbac.OwnAll:
+        return true
+    case rbac.OwnOwner:
+        if a, ok := resource.(*PostAccess); ok {
+            return a.Owner
+        }
+        return false
+    default:
+        return false
+    }
+}
+
+func setup(ctx context.Context) *rbac.Manager {
+    pm := rbac.NewManager(nil)
+
+    // Typed: *User only. A UserAccess DTO with name "user" will not match.
+    pm.RegisterObject((*User)(nil), check)
+
+    // Name-only: *Post or PostAccess with RBACResourceName() == "post".
+    pm.RegisterResource((*Post)(nil), check)
+
+    _ = pm.RegisterNewPermission(nil, "account.register")
+    _ = pm.RegisterNewOwningPermissions((*User)(nil), []string{"view", "edit"})
+    _ = pm.RegisterNewOwningPermissions((*Post)(nil), []string{"view", "edit"})
+
+    pm.RegisterRole(ctx,
+        rbac.MustNewRole("anonymous", rbac.WithPermissions(
+            "account.register",
+            "post.view.owner",
+        )),
+        rbac.MustNewRole("member", rbac.WithPermissions(
+            "user.*.owner",
+            "post.*.owner",
+        )),
+        rbac.MustNewRole("admin", rbac.WithPermissions(
+            "account.register",
+            "*.*.all",
+        )),
+    )
+    return pm
+}
+
+func example(ctx context.Context, pm *rbac.Manager) {
+    member := pm.Role(ctx, "member")
+    admin := pm.Role(ctx, "admin")
+    anonymous := pm.Role(ctx, "anonymous")
+
+    // SimplePermission: full name, or short name + object.
+    _ = anonymous.CheckPermissions(ctx, nil, "account.register")
+    _ = anonymous.CheckPermissions(ctx, &struct{ n string }{}, "account.register") // still matches by name
+
+    // Resource + DTO (RegisterResource).
+    own := &PostAccess{Owner: true}
+    _ = member.CheckPermissions(ctx, own, "edit.owner")
+    _ = member.CheckPermissions(ctx, own, "edit.*")
+
+    // Catalog (no instance check).
+    _ = admin.HasPermission("post.view.all")
 }
 ```
 
-For detailed usage and further documentation, please refer to the [GoDoc](https://godoc.org/github.com/demdxx/rbac) documentation.
+Without `RBACResourceName()`, the name is `package.Type` (for example `rbac.testObject`).
 
 ## License
 
-This RBAC module is distributed under the Apache 2.0 License. For more information, please see the LICENSE file.
+Apache 2.0. See [LICENSE](LICENSE).
 
 ## Contributing
 
-Contributions are welcome! If you encounter issues or have suggestions for improvement, please open an issue or submit a pull request on the GitHub repository.
+Issues and pull requests are welcome.
