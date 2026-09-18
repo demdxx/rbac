@@ -257,7 +257,7 @@ func GetResType(resource any) (res reflect.Type) {
 	default:
 		res = reflect.TypeOf(resource)
 	}
-	for res.Kind() == reflect.Interface || res.Kind() == reflect.Ptr {
+	for res.Kind() == reflect.Interface || res.Kind() == reflect.Pointer {
 		res = res.Elem()
 	}
 	return res

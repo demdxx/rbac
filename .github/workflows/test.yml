@@ -1,3 +1,5 @@
+name: Tests and linting
+
 on:
   push:
     tags:
@@ -10,7 +12,6 @@ on:
       - master
       - main
 
-name: CI
 jobs:
   commitlint:
     if: github.event_name == 'pull_request'

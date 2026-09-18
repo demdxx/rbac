@@ -169,10 +169,10 @@ func valueForCallback(resource any, expected reflect.Type) (reflect.Value, bool)
 	if res.Type() == expected {
 		return res, true
 	}
-	if res.Kind() == reflect.Ptr && !res.IsNil() && res.Type().Elem() == expected {
+	if res.Kind() == reflect.Pointer && !res.IsNil() && res.Type().Elem() == expected {
 		return res.Elem(), true
 	}
-	if expected.Kind() == reflect.Ptr && res.Type() == expected.Elem() {
+	if expected.Kind() == reflect.Pointer && res.Type() == expected.Elem() {
 		ptr := reflect.New(res.Type())
 		ptr.Elem().Set(res)
 		return ptr, true
